@@ -1,6 +1,6 @@
 # From Perception to Assistance: Open-Vocabulary Shared Autonomy for Robotic Manipulation
 
-Code release for the paper *"From Perception to Assistance: Open-Vocabulary Shared Autonomy for Robotic Manipulation"* (submitted to IEEE RA-L, arXiv preprint coming soon).
+Code release for the paper *"From Perception to Assistance: Open-Vocabulary Shared Autonomy for Robotic Manipulation"*.
 
 The stack implements vision-based shared-control teleoperation of a quadruped mobile manipulator (Boston Dynamics Spot with the 6-DoF Spot Arm). A calibration-free camera interface decodes operator intent, an open-vocabulary perception pipeline grounds a free-form text prompt into a 3D grasp frame, and a GPU-accelerated model-predictive controller tracks the (potential-field assisted) reference under self- and environment-collision constraints built from onboard volumetric mapping. An autonomous mode can be gesture-triggered to complete the grasp on the same grounded target.
 
@@ -94,12 +94,3 @@ If you use this code in your research, please cite the paper:
 }
 ```
 
-The entry will be updated with the arXiv identifier once the preprint is online.
-
-## Acknowledgments
-
-This work was developed at the USP Robotics Center (CRoB), University of São Paulo, São Carlos, Brazil.
-
-## License
-
-A license will be added with the arXiv release. Until then, the code is provided for research and review purposes.
