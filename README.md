@@ -1,6 +1,6 @@
 # From Perception to Assistance: Open-Vocabulary Shared Autonomy for Robotic Manipulation
 
-Anonymized code release accompanying the RA-L submission. The stack implements
+The stack implements
 vision-based shared-control teleoperation of a quadruped mobile manipulator
 (Boston Dynamics Spot with the 6-DoF Spot Arm): a calibration-free camera
 interface decodes operator intent, an open-vocabulary perception pipeline
