@@ -1,13 +1,20 @@
 # From Perception to Assistance: Open-Vocabulary Shared Autonomy for Robotic Manipulation
 
-The stack implements
-vision-based shared-control teleoperation of a quadruped mobile manipulator
-(Boston Dynamics Spot with the 6-DoF Spot Arm): a calibration-free camera
-interface decodes operator intent, an open-vocabulary perception pipeline
-grounds a free-form text prompt into a 3D grasp frame, and a GPU-accelerated
-model-predictive controller tracks the (potential-field assisted) reference
-under self- and environment-collision constraints built from onboard volumetric
-mapping.
+Code release for the paper *"From Perception to Assistance: Open-Vocabulary Shared Autonomy for Robotic Manipulation"* (submitted to IEEE RA-L, arXiv preprint coming soon).
+
+The stack implements vision-based shared-control teleoperation of a quadruped mobile manipulator (Boston Dynamics Spot with the 6-DoF Spot Arm). A calibration-free camera interface decodes operator intent, an open-vocabulary perception pipeline grounds a free-form text prompt into a 3D grasp frame, and a GPU-accelerated model-predictive controller tracks the (potential-field assisted) reference under self- and environment-collision constraints built from onboard volumetric mapping. An autonomous mode can be gesture-triggered to complete the grasp on the same grounded target.
+
+## Video
+
+[![Video: Open-Vocabulary Shared Autonomy for Robotic Manipulation](https://img.youtube.com/vi/UNAeSZh0kCU/maxresdefault.jpg)](https://www.youtube.com/watch?v=UNAeSZh0kCU)
+
+*Click the thumbnail to watch the full demonstration, including the industrial valve manipulation and pick-and-place tasks, the collision avoidance stress test, and autonomous execution.*
+
+## Framework overview
+
+![Framework overview](docs/framework_overview.png)
+
+The operator is tracked with a ZED 2i RGB-D camera and MediaPipe, with no wearables, fiducials, or calibration stage. Wrist motion maps to an end-effector position reference, the palm normal sets the gripper roll, and hand gestures command the gripper and mode switches. The target is specified with a free-form text prompt ("wheel valve"), grounded by Qwen3-VL in the gripper camera, and tracked across the three onboard cameras with SAM 2 streaming predictors, producing a world-latched grasp frame that is kept out of the static obstacle map. nvblox fuses the onboard stereo depth into a TSDF/ESDF, and cuRobo runs MPPI-based MPC at 50 Hz against that map for self- and environment-collision avoidance. During the final approach, an attractive potential field corrects the operator's reference toward the grasp frame while the operator retains authority. The same grasp frame drives the gesture-triggered autonomous mode.
 
 ## Repository layout and paper-section map
 
@@ -22,9 +29,17 @@ mapping.
 | II-E Potential-field assistance | Attractive field toward the grasp frame (inside the MPC node goal update) | `spot_operation_ros2/curobo_mpc_node.py` |
 | II-F Autonomous execution | Gesture-triggered mode switch; the MPC tracks the grasp frame directly; gripper control | `spot_operation_ros2/curobo_mpc_node.py`, `control_mode_switcher.py`, `gripper_controller.py` |
 
-`fake_wrist_target.py` publishes a synthetic operator reference for bench tests
-without the camera interface. `isaac_publisher.py`, `joint_state_mapper.py`,
-and `joint_state_remapper.py` bridge joint topics for simulation runs.
+`fake_wrist_target.py` publishes a synthetic operator reference for bench tests without the camera interface. `isaac_publisher.py`, `joint_state_mapper.py`, and `joint_state_remapper.py` bridge joint topics for simulation runs.
+
+## Hardware and compute
+
+The experiments in the paper use:
+
+- Boston Dynamics Spot with the 6-DoF Spot Arm and gripper camera
+- ZED 2i RGB-D camera facing the operator
+- A single NVIDIA GPU running the full onboard-facing stack (nvblox mapping, cuRobo MPC, SAM 2 trackers) plus the vLLM server for Qwen3-VL-4B-Instruct
+
+The teleoperation interface itself is robot-agnostic: it publishes a Cartesian end-effector reference, a roll command, and discrete gripper actions, and can be adapted to any RGB-D sensor with aligned depth and known intrinsics.
 
 ## Running
 
@@ -48,10 +63,7 @@ ros2 launch spot_operation_ros2 curobo_mpc.launch.py               # collision-a
 ros2 launch spot_nvblox spot_nvblox.launch.py                      # TSDF/ESDF mapping
 ```
 
-The MPC node is executed with a dedicated virtual environment
-(`spot-ros2_ws/curobo_venv`, referenced by `curobo_mpc.launch.py`) in which
-cuRobo and its PyTorch dependencies are installed inside the `spot-ros2`
-container, following the upstream cuRobo installation instructions.
+The MPC node is executed with a dedicated virtual environment (`spot-ros2_ws/curobo_venv`, referenced by `curobo_mpc.launch.py`) in which cuRobo and its PyTorch dependencies are installed inside the `spot-ros2` container, following the upstream cuRobo installation instructions.
 
 ## Dependencies (pinned)
 
@@ -66,9 +78,28 @@ container, following the upstream cuRobo installation instructions.
 | SAM 2.1 (base) | via `ultralytics` | promptable video segmentation |
 | MediaPipe Pose / Hands / Gestures | `mediapipe` | operator tracking |
 
-`setup_dependencies.sh` clones the dependencies above into the expected
-workspace paths.
+`setup_dependencies.sh` clones the dependencies above into the expected workspace paths.
+
+## Citation
+
+If you use this code in your research, please cite the paper:
+
+```bibtex
+@article{openvocab_shared_autonomy_2026,
+  title   = {From Perception to Assistance: Open-Vocabulary Shared Autonomy for Robotic Manipulation},
+  author  = {},
+  journal = {arXiv preprint},
+  year    = {2026},
+  note    = {Submitted to IEEE Robotics and Automation Letters}
+}
+```
+
+The entry will be updated with the arXiv identifier once the preprint is online.
+
+## Acknowledgments
+
+This work was developed at the USP Robotics Center (CRoB), University of São Paulo, São Carlos, Brazil.
 
 ## License
 
-Code is provided for peer review. A license will be added upon acceptance.
+A license will be added with the arXiv release. Until then, the code is provided for research and review purposes.
