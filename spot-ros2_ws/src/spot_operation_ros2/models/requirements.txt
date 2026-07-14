@@ -1,0 +1,20 @@
+# PyTorch and torchvision with CUDA support (check that the PyTorch version is compatible with CUDA 12.4; you may need to adjust the extra-index-url per the official documentation)
+torch==2.0.1
+torchvision==0.15.2
+
+# YOLO framework - make sure this version meets your needs (custom YOLOv11 or via Ultralytics)
+ultralytics==8.0.80
+
+# Image processing and manipulation libraries
+opencv-python==4.8.0.76
+numpy==1.23.5
+pycocotools==2.0.6
+Pillow==9.5.0
+
+# Utilities for parallelization and data handling
+joblib==1.2.0
+pandas==1.5.3
+scikit-learn==1.2.2
+
+# Plotting and visualization library
+matplotlib==3.6.3
