@@ -35,16 +35,16 @@ repositories:
   spot-ros2_ws/src/spot_ros2:
     type: git
     url: https://github.com/rai-opensource/spot_ros2.git
-    version: main
+    version: b344640b172afeda72e0c47a8bee4a4a44ba9a99
   spot-ros2_ws/src/spot_wrapper:
     type: git
     url: https://github.com/rai-opensource/spot_wrapper.git
-    version: main
+    version: 8a2cbbd6295cc4c549af4a02d7a19618558c15be
   spot-ros2_ws/src/spot_description:
     type: git
     url: https://github.com/rai-opensource/spot_description.git
-    version: main
+    version: 156d1802bfb117f219dbfce7597d283d5fabc968
   spot-ros2_ws/src/ros_utilities:
     type: git
     url: https://github.com/bdaiinstitute/ros_utilities.git
-    version: main
+    version: 1186d4cfe87b33fc621a40569e37a336ef0187cb
