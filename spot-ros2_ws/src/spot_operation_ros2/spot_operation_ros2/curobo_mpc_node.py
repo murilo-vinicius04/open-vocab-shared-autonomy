@@ -184,7 +184,6 @@ class CuroboMpcNode(Node):
         # not to have moved, so the last measured box stays valid.
         self._clear_box = None
 
-        # ... (Keeping default paths logic)
         os.environ["SPOT_URDF_PATH"] = os.path.dirname(urdf_path)
 
         self._log_info("cuRobo MPC Node Starting", event="startup")
@@ -192,7 +191,7 @@ class CuroboMpcNode(Node):
         self._log_info(f"URDF path: {urdf_path}", event="startup")
         self._log_info(f"Control rate: {self.control_rate} Hz", event="startup")
         self._log_info(
-            f'Use sim: {self.use_sim} ({"arm0_ prefix" if self.use_sim else "arm_ prefix"})',
+            f"Use sim: {self.use_sim} ({'arm0_ prefix' if self.use_sim else 'arm_ prefix'})",
             event="startup",
         )
         self._log_info(
@@ -284,7 +283,7 @@ class CuroboMpcNode(Node):
         )
         self.robot_cfg["kinematics"]["collision_sphere_buffer"] += extra_buffer
         self._log_info(
-            f'collision_sphere_buffer={self.robot_cfg["kinematics"]["collision_sphere_buffer"]:.4f} m '
+            f"collision_sphere_buffer={self.robot_cfg['kinematics']['collision_sphere_buffer']:.4f} m "
             f"(config + extra {extra_buffer:.4f})",
             event="config",
         )
@@ -337,7 +336,6 @@ class CuroboMpcNode(Node):
         self._last_target_object = (float("nan"), float("nan"), float("nan"))
         self._last_target_dist = float("nan")
 
-        # ... (Keeping MPC init state)
         # Initialize state
         retract_cfg = (
             self.mpc.rollout_fn.dynamics_model.retract_config.clone().unsqueeze(0)
@@ -513,8 +511,6 @@ class CuroboMpcNode(Node):
             # Get joint topic name for the log message
             joint_topic = "/joint_states_isaac" if self.use_sim else "/joint_states"
             self._log_info(f"Waiting for /wrist_pose and {joint_topic}...")
-
-    # ... (Keeping _generate_test_poses, _euler_to_quaternion, _get_debug_pose, pose_callback, joint_state_callback)
 
     def _remap_config_prefix(self, config, old_prefix, new_prefix):
         """Recursively remap string prefixes in a config dict/list."""
@@ -1104,7 +1100,7 @@ class CuroboMpcNode(Node):
             f"Grid AABB in {self._esdf_query_frame}: "
             f"min=({bb_min[0]:+.2f},{bb_min[1]:+.2f},{bb_min[2]:+.2f}) "
             f"max=({bb_max[0]:+.2f},{bb_max[1]:+.2f},{bb_max[2]:+.2f}) "
-            f'-> body origin {"INSIDE" if arm_inside else "OUTSIDE"} grid'
+            f"-> body origin {'INSIDE' if arm_inside else 'OUTSIDE'} grid"
         )
         self._log_info(center_msg, event="esdf")
         self._log_info(tf_msg, event="esdf")
@@ -1395,7 +1391,7 @@ class CuroboMpcNode(Node):
                         # to a different IK solution (which causes a dangerous jerk).
                         self._log_info(
                             f"Warm-up MPC with real joint state: "
-                            f'[{", ".join(f"{p:.3f}" for p in cu_js_init.position.view(-1).cpu().numpy())}]'
+                            f"[{', '.join(f'{p:.3f}' for p in cu_js_init.position.view(-1).cpu().numpy())}]"
                         )
                         self.current_state.copy_(cu_js_init)
                         self.goal_buffer.goal_pose.copy_(self.last_goal_pose)
@@ -1411,7 +1407,7 @@ class CuroboMpcNode(Node):
                             torch.cuda.synchronize()  # so the timing reflects real GPU stall
                             _it_ms = (time.time() - _it_t0) * 1000.0
                             self._log_info(
-                                f"Warm-up iter {i+1}/{WARMUP_ITERS}: mpc.step={_it_ms:.0f}ms "
+                                f"Warm-up iter {i + 1}/{WARMUP_ITERS}: mpc.step={_it_ms:.0f}ms "
                                 f"(esdf_initialized={self._esdf_initialized}, "
                                 f"esdf_call_pending={self._esdf_call_pending})",
                                 event="warmup",
@@ -1427,7 +1423,7 @@ class CuroboMpcNode(Node):
                             # But keep overriding with real state to anchor around it
                             self.current_state.copy_(cu_js_init)
                         self._log_info(
-                            f"Warm-up loop wall time: {(time.time() - _warmup_t0)*1000.0:.0f}ms "
+                            f"Warm-up loop wall time: {(time.time() - _warmup_t0) * 1000.0:.0f}ms "
                             f"for {WARMUP_ITERS} iters",
                             event="warmup",
                         )
@@ -1438,8 +1434,8 @@ class CuroboMpcNode(Node):
                         max_diff = max(abs(warmup_cmd - real_pos))
                         self._log_info(
                             f"Warm-up done ({WARMUP_ITERS} iters). Max joint diff: {max_diff:.4f} rad\n"
-                            f'  Real:    [{", ".join(f"{p:.3f}" for p in real_pos)}]\n'
-                            f'  MPC cmd: [{", ".join(f"{p:.3f}" for p in warmup_cmd)}]'
+                            f"  Real:    [{', '.join(f'{p:.3f}' for p in real_pos)}]\n"
+                            f"  MPC cmd: [{', '.join(f'{p:.3f}' for p in warmup_cmd)}]"
                         )
 
                         self.goal_received = True
@@ -1456,8 +1452,8 @@ class CuroboMpcNode(Node):
                 self._log_gate(
                     "inputs",
                     f"Control loop gated: joints_received={self.joints_received} "
-                    f'js_msg={"set" if _js_msg is not None else "None"} '
-                    f'last_goal_pose={"set" if self.last_goal_pose is not None else "None"}',
+                    f"js_msg={'set' if _js_msg is not None else 'None'} "
+                    f"last_goal_pose={'set' if self.last_goal_pose is not None else 'None'}",
                 )
                 return
             # NOTE: the control loop no longer waits for the first ESDF map. MPC
@@ -1466,14 +1462,13 @@ class CuroboMpcNode(Node):
             # updated in-place by _on_esdf_response). _esdf_initialized is kept
             # only for the one-time "First ESDF map received" log.
 
-        # Guard: skip MPC if joint state is too stale (Isaac Sim stopped publishing)
         JS_STALE_THRESHOLD = 2.0  # seconds
         if self._last_joint_stamp is not None:
             js_age_now = time.time() - self._last_joint_stamp
             if js_age_now > JS_STALE_THRESHOLD:
                 self._log_gate(
                     "stale",
-                    f"⚠️ Joint state is STALE ({js_age_now*1000:.0f}ms)! "
+                    f"⚠️ Joint state is STALE ({js_age_now * 1000:.0f}ms)! "
                     f"Source may have stopped publishing. Skipping MPC step.",
                     level="WARN",
                 )
@@ -1517,7 +1512,9 @@ class CuroboMpcNode(Node):
                 # 2. Get Target Object in 'body' frame
                 # 'target_object' is published by the perception pipeline
                 target_tf = self.tf_buffer.lookup_transform(
-                    self.target_frame, "target_object", rclpy.time.Time()  # 'body'
+                    self.target_frame,
+                    "target_object",
+                    rclpy.time.Time(),  # 'body'
                 )
 
                 target_pos_np = np.array(
@@ -1780,7 +1777,6 @@ class CuroboMpcNode(Node):
                     curr_pos="|".join(f"{v:.6f}" for v in curr_pos_list),
                 )
 
-                # Human-readable collision diagnostic to terminal.
                 # cuRobo VoxelGrid convention here: positive = inside obstacle.
                 # min_dist near the sentinel (~-100) means the sphere fell outside the voxel grid.
                 if min_dist <= -50.0:
