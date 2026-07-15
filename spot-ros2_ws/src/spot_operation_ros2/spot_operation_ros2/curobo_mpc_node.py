@@ -69,9 +69,6 @@ class CuroboMpcNode(Node):
             "debug_pose_duration", 3.0
         )  # seconds between pose changes
         self.declare_parameter(
-            "use_sim", True
-        )  # True=sim (arm0_ prefix), False=real (arm_ prefix)
-        self.declare_parameter(
             "use_ros2_control", False
         )  # True=publish JointCommand to spot_joint_controller
         self.declare_parameter(
@@ -130,7 +127,6 @@ class CuroboMpcNode(Node):
         self.debug_pose_duration = (
             self.get_parameter("debug_pose_duration").get_parameter_value().double_value
         )
-        self.use_sim = self.get_parameter("use_sim").get_parameter_value().bool_value
         self.use_ros2_control = (
             self.get_parameter("use_ros2_control").get_parameter_value().bool_value
         )
@@ -191,10 +187,6 @@ class CuroboMpcNode(Node):
         self._log_info(f"URDF path: {urdf_path}", event="startup")
         self._log_info(f"Control rate: {self.control_rate} Hz", event="startup")
         self._log_info(
-            f"Use sim: {self.use_sim} ({'arm0_ prefix' if self.use_sim else 'arm_ prefix'})",
-            event="startup",
-        )
-        self._log_info(
             f"Use ESDF: {self.use_esdf} ({self.esdf_service_name} @ {self.esdf_update_rate} Hz)",
             event="startup",
         )
@@ -212,59 +204,37 @@ class CuroboMpcNode(Node):
             os.environ["CUROBO_CONFIG_PATH"], "spheres", "spot_arm.yml"
         )
 
-        if self.use_sim:
-            # Sim uses arm0_ joint names but standalone_arm_fixed.urdf has arm_ prefix links/joints.
-            # Generate a temp URDF with arm_ -> arm0_ so cuRobo's kinematic chain resolves correctly.
-            urdf_src = os.path.join(
-                os.path.dirname(urdf_path), "standalone_arm_fixed.urdf"
-            )
-            with open(urdf_src, "r") as f:
-                urdf_text = f.read()
-            urdf_text = urdf_text.replace("arm_", "arm0_")
-            tmp_urdf = tempfile.NamedTemporaryFile(
-                mode="w", suffix=".urdf", delete=False
-            )
-            tmp_urdf.write(urdf_text)
-            tmp_urdf.close()
-            robot_cfg_raw["kinematics"]["external_asset_path"] = os.path.dirname(
-                tmp_urdf.name
-            )
-            robot_cfg_raw["kinematics"]["urdf_path"] = os.path.basename(tmp_urdf.name)
-            robot_cfg_raw["kinematics"]["collision_spheres"] = spheres_path
-            self._log_info(
-                f"Sim: generated arm0_-prefixed URDF at {tmp_urdf.name}", event="config"
-            )
-        else:
-            # Real: prefix arm_. Remap config arm0_ -> arm_, generate temp URDF and spheres.
-            robot_cfg_raw = self._remap_config_prefix(robot_cfg_raw, "arm0_", "arm_")
-            # Generate temp URDF with arm0_ -> arm_ so cuRobo's kinematic chain resolves correctly.
-            urdf_src = os.path.join(
-                os.path.dirname(urdf_path), "standalone_arm_fixed.urdf"
-            )
-            with open(urdf_src, "r") as f:
-                urdf_text = f.read()
-            urdf_text = urdf_text.replace("arm0_", "arm_")
-            tmp_urdf = tempfile.NamedTemporaryFile(
-                mode="w", suffix=".urdf", delete=False
-            )
-            tmp_urdf.write(urdf_text)
-            tmp_urdf.close()
-            robot_cfg_raw["kinematics"]["external_asset_path"] = os.path.dirname(
-                tmp_urdf.name
-            )
-            robot_cfg_raw["kinematics"]["urdf_path"] = os.path.basename(tmp_urdf.name)
-            spheres_data = load_yaml(spheres_path)
-            spheres_data = self._remap_config_prefix(spheres_data, "arm0_", "arm_")
-            tmp_spheres = tempfile.NamedTemporaryFile(
-                mode="w", suffix=".yml", delete=False
-            )
-            yaml.dump(spheres_data, tmp_spheres)
-            tmp_spheres.close()
-            robot_cfg_raw["kinematics"]["collision_spheres"] = tmp_spheres.name
-            self._log_info(
-                f"Real: remapped config arm0_ -> arm_. Temp URDF: {tmp_urdf.name}, Temp spheres: {tmp_spheres.name}",
-                event="config",
-            )
+        # The robot uses the arm_ joint prefix. The config files are authored with
+        # the arm0_ prefix, so remap config arm0_ -> arm_ and generate a temp URDF
+        # and spheres file so cuRobo's kinematic chain resolves correctly.
+        robot_cfg_raw = self._remap_config_prefix(robot_cfg_raw, "arm0_", "arm_")
+        urdf_src = os.path.join(
+            os.path.dirname(urdf_path), "standalone_arm_fixed.urdf"
+        )
+        with open(urdf_src, "r") as f:
+            urdf_text = f.read()
+        urdf_text = urdf_text.replace("arm0_", "arm_")
+        tmp_urdf = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".urdf", delete=False
+        )
+        tmp_urdf.write(urdf_text)
+        tmp_urdf.close()
+        robot_cfg_raw["kinematics"]["external_asset_path"] = os.path.dirname(
+            tmp_urdf.name
+        )
+        robot_cfg_raw["kinematics"]["urdf_path"] = os.path.basename(tmp_urdf.name)
+        spheres_data = load_yaml(spheres_path)
+        spheres_data = self._remap_config_prefix(spheres_data, "arm0_", "arm_")
+        tmp_spheres = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".yml", delete=False
+        )
+        yaml.dump(spheres_data, tmp_spheres)
+        tmp_spheres.close()
+        robot_cfg_raw["kinematics"]["collision_spheres"] = tmp_spheres.name
+        self._log_info(
+            f"Remapped config arm0_ -> arm_. Temp URDF: {tmp_urdf.name}, Temp spheres: {tmp_spheres.name}",
+            event="config",
+        )
 
         self.robot_cfg = robot_cfg_raw
         self.j_names = self.robot_cfg["kinematics"]["cspace"]["joint_names"]
@@ -404,17 +374,14 @@ class CuroboMpcNode(Node):
         )
 
         # Publishers/Subscribers
-        if self.use_sim:
-            cmd_topic = "/joint_command_curobo"
-            joint_topic = "/joint_states_isaac"
-        elif self.use_ros2_control:
+        if self.use_ros2_control:
             cmd_topic = "/spot_joint_controller/joint_commands"
             joint_topic = "/joint_states"
         else:
             cmd_topic = "/arm/joint_command"
             joint_topic = "/joint_states"
 
-        if self.use_ros2_control and not self.use_sim:
+        if self.use_ros2_control:
             if JointCommand is None:
                 self._log_fatal(
                     "use_ros2_control=True but spot_msgs.msg.JointCommand not found!"
@@ -508,9 +475,7 @@ class CuroboMpcNode(Node):
             )
             self.goal_received = True  # Auto-ready in debug mode
         else:
-            # Get joint topic name for the log message
-            joint_topic = "/joint_states_isaac" if self.use_sim else "/joint_states"
-            self._log_info(f"Waiting for /wrist_pose and {joint_topic}...")
+            self._log_info("Waiting for /wrist_pose and /joint_states...")
 
     def _remap_config_prefix(self, config, old_prefix, new_prefix):
         """Recursively remap string prefixes in a config dict/list."""
@@ -1669,7 +1634,7 @@ class CuroboMpcNode(Node):
             vel_list = cmd_state.velocity.view(-1).cpu().numpy().tolist()
             # acc_list = cmd_state.acceleration.view(-1).cpu().numpy().tolist()
 
-            if self.use_ros2_control and not self.use_sim:
+            if self.use_ros2_control:
                 # Publish JointCommand for spot_joint_controller
                 joint_cmd = JointCommand()
                 joint_cmd.name = ordered_names
@@ -1677,13 +1642,10 @@ class CuroboMpcNode(Node):
                 joint_cmd.velocity = vel_list
                 # Leave effort, k_q_p, k_qd_p empty to use SDK default gains
             else:
-                # Publish JointState for sim or legacy real robot path
+                # Publish JointState on /arm/joint_command
                 joint_cmd = JointState()
                 joint_cmd.header.stamp = self.get_clock().now().to_msg()
-                if self.use_sim:
-                    joint_cmd.name = [n.replace("arm_", "arm0_") for n in ordered_names]
-                else:
-                    joint_cmd.name = ordered_names
+                joint_cmd.name = ordered_names
                 joint_cmd.position = pos_list
                 joint_cmd.velocity = vel_list
                 joint_cmd.effort = []

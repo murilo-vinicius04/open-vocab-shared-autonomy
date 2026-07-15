@@ -24,8 +24,6 @@ def launch_setup(context: LaunchContext):
     robot_config_path = os.path.join(spot_config_dir, "config", "spot_arm.yml")
 
     # cuRobo MPC Node - Must use venv Python because cuRobo is installed there
-    use_sim = LaunchConfiguration("use_sim")
-
     # Build command list - add joint_states remapping when using ros2_control
     # (spot_ros2_control publishes to /low_level/joint_states)
     curobo_cmd = [
@@ -65,8 +63,6 @@ def launch_setup(context: LaunchContext):
         f"urdf_path:={xacro_file}",
         "-p",
         ["use_sim_time:=", LaunchConfiguration("use_sim_time")],
-        "-p",
-        ["use_sim:=", use_sim],
         "-p",
         ["use_ros2_control:=", LaunchConfiguration("use_ros2_control")],
     ]
@@ -123,17 +119,6 @@ def launch_setup(context: LaunchContext):
         },
     )
 
-    # Static TF: base -> body — only in sim (real robot already has body frame from Spot driver)
-    # base_to_body_tf = Node(
-    #     package="tf2_ros",
-    #     executable="static_transform_publisher",
-    #     name="base_to_body_tf",
-    #     arguments=["0", "0", "0", "0", "0", "0", "base", "body"],
-    #     output="screen",
-    #     parameters=[{"use_sim_time": LaunchConfiguration("use_sim_time")}],
-    #     condition=IfCondition(use_sim),
-    # )
-
     gripper_remappings = []
     if use_ros2_control_val.lower() in ("true", "1", "yes"):
         gripper_remappings = [("/joint_states", "/low_level/joint_states")]
@@ -152,7 +137,6 @@ def launch_setup(context: LaunchContext):
     )
 
     return [
-        # base_to_body_tf,
         curobo_mpc_process,
         gripper_controller_node,
     ]
@@ -229,11 +213,6 @@ def generate_launch_description():
                 "use_sim_time",
                 default_value="false",
                 description="Use simulation (Gazebo/Isaac) clock if true",
-            ),
-            DeclareLaunchArgument(
-                "use_sim",
-                default_value="true",
-                description="True for sim (arm0_ joint prefix), False for real robot (arm_ prefix)",
             ),
             DeclareLaunchArgument(
                 "use_ros2_control",

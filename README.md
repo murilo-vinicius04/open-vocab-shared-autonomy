@@ -101,8 +101,9 @@ The MPC node is executed with a dedicated virtual environment (`spot-ros2_ws/cur
 spawns Spot with the arm in a cluttered warehouse and drives it with the
 locomanipulation policy (a self-contained TorchScript module shipped at
 `spot_warehouse/policies/spot_warehouse_policy.pt`). It publishes the same
-ROS 2 topics as the real robot, so the perception and MPC stacks above can run
-against the simulation (`use_sim` paths).
+ROS 2 topics and joint names as the real robot (`/joint_states`, `/tf`,
+`/arm/joint_command`), so the perception and MPC stacks above run against the
+simulation unchanged, with no sim-specific launch flags.
 
 ```bash
 docker compose up -d isaac-sim
