@@ -1,0 +1,19 @@
+[submodule "spot-ros2_ws/src/curobo"]
+	path = spot-ros2_ws/src/curobo
+	url = https://github.com/NVlabs/curobo.git
+[submodule "spot-ros2_ws/src/spot_ros2"]
+	path = spot-ros2_ws/src/spot_ros2
+	url = https://github.com/bdaiinstitute/spot_ros2.git
+	branch = main
+[submodule "isaac-ros_ws/src/isaac_ros_nvblox"]
+	path = isaac-ros_ws/src/isaac_ros_nvblox
+	url = https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_nvblox.git
+[submodule "isaac-ros_ws/src/isaac_ros_common"]
+	path = isaac-ros_ws/src/isaac_ros_common
+	url = https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_common.git
+[submodule "zed_ws/src/zed-ros2-wrapper"]
+	path = zed_ws/src/zed-ros2-wrapper
+	url = https://github.com/stereolabs/zed-ros2-wrapper.git
+[submodule "zed_ws/src/zed-ros2-interfaces"]
+	path = zed_ws/src/zed-ros2-interfaces
+	url = https://github.com/stereolabs/zed-ros2-interfaces.git

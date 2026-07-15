@@ -41,6 +41,21 @@ The experiments in the paper use:
 
 The teleoperation interface itself is robot-agnostic: it publishes a Cartesian end-effector reference, a roll command, and discrete gripper actions, and can be adapted to any RGB-D sensor with aligned depth and known intrinsics.
 
+## Building
+
+Third-party ROS dependencies are pinned as git submodules. Clone recursively:
+
+```bash
+git clone --recursive <this-repo-url>
+# or, in an existing checkout:
+git submodule update --init --recursive
+```
+
+The Spot robot description package (`spot_description`, providing the URDF/xacro
+consumed by `curobo_mpc.launch.py`) is not included here; place a Spot
+description package at `spot-ros2_ws/src/spot_description` before building the
+`spot-ros2` workspace.
+
 ## Running
 
 The stack is containerized; services are defined in `docker-compose.yaml`:
@@ -67,18 +82,23 @@ The MPC node is executed with a dedicated virtual environment (`spot-ros2_ws/cur
 
 ## Dependencies (pinned)
 
-| Dependency | Version / pin | Notes |
+All ROS dependencies below are pinned as git submodules at the exact commits
+used in the experiments (see `.gitmodules`).
+
+| Dependency | Pinned commit | Notes |
 |---|---|---|
-| [cuRobo](https://github.com/NVlabs/curobo) | v0.7.7 | MPPI MPC, ESDF collision checking |
-| [isaac_ros_nvblox](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_nvblox) | 7908a18 (v3.2 line) | TSDF/ESDF mapping |
-| [isaac_ros_common](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_common) | fcf4d9e (v3.2 line) | build/runtime support |
-| [spot_ros2](https://github.com/bdaiinstitute/spot_ros2) | spot-sdk-4.0.0 base | robot driver; used with minor launch adjustments |
-| [zed-ros2-wrapper](https://github.com/stereolabs/zed-ros2-wrapper) | e9f5490 (humble-v4.2.5 line) | operator camera |
+| [cuRobo](https://github.com/NVlabs/curobo) | `ebb7170` (v0.7.7+5) | MPPI MPC, ESDF collision checking |
+| [isaac_ros_nvblox](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_nvblox) | `7908a18` (v3.2 line) | TSDF/ESDF mapping |
+| [isaac_ros_common](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_common) | `fcf4d9e` (v3.2 line) | build/runtime support |
+| [spot_ros2](https://github.com/bdaiinstitute/spot_ros2) | `4143c50` (spot-sdk-4.0.0+) | robot driver |
+| [zed-ros2-wrapper](https://github.com/stereolabs/zed-ros2-wrapper) | `e9f5490` (humble-v4.2.5 line) | operator camera |
+| [zed-ros2-interfaces](https://github.com/stereolabs/zed-ros2-interfaces) | `cfffb88` (5.0.1+) | ZED message definitions |
 | Qwen3-VL-4B-Instruct | via vLLM (see `docker-compose.yaml`) | open-vocabulary grounding |
 | SAM 2.1 (base) | via `ultralytics` | promptable video segmentation |
 | MediaPipe Pose / Hands / Gestures | `mediapipe` | operator tracking |
 
-`setup_dependencies.sh` clones the dependencies above into the expected workspace paths.
+The VLM, SAM 2, and MediaPipe models are pulled at build time by the Docker
+images and the Python requirements, not vendored here.
 
 ## Citation
 
