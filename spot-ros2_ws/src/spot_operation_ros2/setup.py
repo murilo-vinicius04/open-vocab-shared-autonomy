@@ -17,6 +17,10 @@ setup(
             os.path.join("share", package_name, "config/spheres"),
             glob("config/spheres/*.yml"),
         ),
+        (
+            os.path.join("share", package_name, "config/urdf"),
+            glob("config/urdf/*.urdf"),
+        ),
     ],
     install_requires=[
         "setuptools",

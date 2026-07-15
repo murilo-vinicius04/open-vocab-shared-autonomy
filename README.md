@@ -44,11 +44,33 @@ The experiments in the paper use:
 
 The teleoperation interface itself is robot-agnostic: it publishes a Cartesian end-effector reference, a roll command, and discrete gripper actions, and can be adapted to any RGB-D sensor with aligned depth and known intrinsics.
 
+## Prerequisites
+
+The stack runs in GPU containers, so the host needs:
+
+- An NVIDIA GPU with a recent driver and the
+  [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)
+  (every compute service uses `runtime: nvidia` / `gpus: all`).
+- Docker with the Compose v2 plugin (`docker compose`).
+- An X server for the GUI tools (RViz, Isaac Sim). Allow local containers to
+  connect and export the display, e.g. `xhost +local:` and `export DISPLAY=:0`.
+
+The base images (Isaac Sim, Isaac ROS, ZED, the Qwen vLLM image) are pulled from
+public registries on first build and total tens of GB; no NGC login is required.
+Environment variables read by `docker-compose.yaml`:
+
+- `HUGGING_FACE_HUB_TOKEN` - only needed for gated Hugging Face models.
+  Qwen3-VL-4B-Instruct is ungated, so this can be left unset (compose prints a
+  harmless "variable is not set" warning).
+- `SPOT_NAME` - name of the Spot robot (defaults to `Spot`).
+- `DISPLAY` - forwarded to the GUI containers.
+
 ## Building
 
 Third-party ROS dependencies are git submodules. Clone into a directory named
-`spot-teleop` (docker-compose.yaml mounts it to `/home/spot-teleop` inside the
-containers, and the internal paths assume that name):
+`spot-teleop` (this is the conventional name; `docker-compose.yaml` bind-mounts
+the checkout to `/home/spot-teleop` inside the containers). Replace
+`<repository-url>` with this repository's clone URL:
 
 ```bash
 # Clone with all submodules.
@@ -56,9 +78,6 @@ git clone --recursive <repository-url> spot-teleop && cd spot-teleop
 
 # Or, in an existing checkout:
 git submodule update --init --recursive
-
-# Then bring up the containers (see "Running") and build inside them, e.g.:
-#   cd spot-ros2_ws && colcon build --symlink-install
 ```
 
 `git submodule update --init --recursive` checks out each submodule at the exact
@@ -69,6 +88,78 @@ sub-packages (`spot_wrapper`, `spot_description`, `synchros2`) through the same
 recursive update; run `git submodule update --remote spot-ros2_ws/src/spot_ros2`
 to advance it. Do not use a bare `--remote` on the whole tree, as that would
 move the pinned dependencies off their recorded commits.
+
+### Building the ROS 2 workspace
+
+The containers bind-mount the repository over `/home/spot-teleop`, which shadows
+the source that was copied in at image-build time. The workspace is therefore
+prepared at runtime, inside the container, against the mounted tree:
+
+```bash
+docker compose up -d spot-ros2
+docker compose exec spot-ros2 bash
+
+# --- inside the spot-ros2 container ---
+cd /home/spot-teleop/spot-ros2_ws
+rosdep update && rosdep install --from-paths src --ignore-src -r -y --rosdistro humble
+
+# Run the Spot driver setup against the mounted tree. It installs the Spot SDK
+# dependencies and re-pins setuptools to the version ROS 2 Humble expects (the
+# image ships a newer setuptools that otherwise breaks ament_python builds):
+cd src/spot_ros2 && ./install_spot_ros2.sh && cd ../..
+
+colcon build --symlink-install
+source install/setup.bash
+```
+
+The entrypoint auto-sources `install/setup.bash` only if it already exists, so on
+the first run you must build and then `source` it manually in that shell; later
+`docker compose exec` sessions and container restarts source it for you. The
+`zed_ws` and `isaac-ros_ws` workspaces are built the same way inside their own
+containers.
+
+### cuRobo MPC environment
+
+`curobo_mpc.launch.py` runs the MPC node from a dedicated virtual environment
+(`spot-ros2_ws/curobo_venv`) so cuRobo and its CUDA-compiled kernels stay
+isolated from the ROS Python environment. The `spot-ros2` image provides the
+CUDA runtime through the NVIDIA container runtime, but not the CUDA compiler or
+the `venv` tooling, so install those first. Inside the `spot-ros2` container:
+
+```bash
+# 1. Build prerequisites the base image does not include. The CUDA compiler
+#    comes from NVIDIA's apt repo (not the default sources); python3.10-venv is
+#    in the Ubuntu archive.
+wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.1-1_all.deb
+dpkg -i cuda-keyring_1.1-1_all.deb
+apt-get update && apt-get install -y cuda-toolkit-12-8 python3.10-venv
+export CUDA_HOME=/usr/local/cuda-12.8
+export PATH=$CUDA_HOME/bin:$PATH
+
+# 2. Create the venv and install a CUDA-matched PyTorch.
+cd /home/spot-teleop/spot-ros2_ws
+python3 -m venv curobo_venv
+source curobo_venv/bin/activate
+pip install --upgrade pip wheel "setuptools<70" setuptools_scm
+pip install torch --index-url https://download.pytorch.org/whl/cu128
+
+# 3. Build cuRobo (compiles CUDA kernels, ~15 min), then pin warp-lang.
+#    cuRobo 0.7.7 uses the older warp API, so pin it explicitly (the latest
+#    warp-lang removes the wp.torch attribute cuRobo relies on).
+pip install -e src/curobo --no-build-isolation
+pip install "warp-lang==1.3.0"
+deactivate
+```
+
+The MPC node imports message types from `nvblox_msgs` (part of the
+`isaac_ros_nvblox` submodule) even when the ESDF is disabled, so build that one
+package into the workspace and re-source (run from `spot-ros2_ws`):
+
+```bash
+colcon build --paths ../isaac-ros_ws/src/isaac_ros_nvblox/nvblox_msgs \
+             --packages-select nvblox_msgs
+source install/setup.bash
+```
 
 ## Running
 
@@ -84,7 +175,7 @@ Typical bring-up on the robot:
 
 ```bash
 docker compose up -d vllm-server zed spot-ros2 isaac-ros
-# inside spot-ros2 (after colcon build --symlink-install):
+# inside spot-ros2 (after building the workspace, see "Building the ROS 2 workspace"):
 ros2 launch arm_pose_estimator wrist_detector_zed.launch.py       # operator interface
 ros2 launch spot_operation_ros2 perception_minimal.launch.py \
      object_prompt:="wheel valve"                                  # grounding + tracking
@@ -93,7 +184,8 @@ ros2 launch spot_operation_ros2 curobo_mpc.launch.py               # collision-a
 ros2 launch spot_nvblox spot_nvblox.launch.py                      # TSDF/ESDF mapping
 ```
 
-The MPC node is executed with a dedicated virtual environment (`spot-ros2_ws/curobo_venv`, referenced by `curobo_mpc.launch.py`) in which cuRobo and its PyTorch dependencies are installed inside the `spot-ros2` container, following the upstream cuRobo installation instructions.
+The `curobo_mpc.launch.py` node runs from the `curobo_venv` virtual environment
+described under "Building the ROS 2 workspace" above.
 
 ## Isaac Sim locomanipulation demo
 

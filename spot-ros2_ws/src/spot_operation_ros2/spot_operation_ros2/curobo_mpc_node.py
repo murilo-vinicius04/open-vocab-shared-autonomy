@@ -206,10 +206,12 @@ class CuroboMpcNode(Node):
 
         # The robot uses the arm_ joint prefix. The config files are authored with
         # the arm0_ prefix, so remap config arm0_ -> arm_ and generate a temp URDF
-        # and spheres file so cuRobo's kinematic chain resolves correctly.
+        # and spheres file so cuRobo's kinematic chain resolves correctly. The
+        # standalone arm URDF is shipped with this package's config (resolved the
+        # same way as the collision spheres, via CUROBO_CONFIG_PATH).
         robot_cfg_raw = self._remap_config_prefix(robot_cfg_raw, "arm0_", "arm_")
         urdf_src = os.path.join(
-            os.path.dirname(urdf_path), "standalone_arm_fixed.urdf"
+            os.environ["CUROBO_CONFIG_PATH"], "urdf", "standalone_arm_fixed.urdf"
         )
         with open(urdf_src, "r") as f:
             urdf_text = f.read()
