@@ -45,37 +45,29 @@ The teleoperation interface itself is robot-agnostic: it publishes a Cartesian e
 
 ## Building
 
-Third-party ROS dependencies are listed in `dependencies.repos` and fetched
-with [vcstool](https://github.com/dirk-thomas/vcstool), each pinned to the
-exact version used in the experiments. From the repository root:
+Third-party ROS dependencies are git submodules. Clone into a directory named
+`spot-teleop` (docker-compose.yaml mounts it to `/home/spot-teleop` inside the
+containers, and the internal paths assume that name):
 
 ```bash
-# 1. Clone into a directory named spot-teleop (no --recursive needed).
-#    docker-compose.yaml mounts this directory to /home/spot-teleop inside the
-#    containers, and the internal paths assume that name.
-git clone <repository-url> spot-teleop && cd spot-teleop
+# Clone with all submodules.
+git clone --recursive <repository-url> spot-teleop && cd spot-teleop
 
-# 2. Install vcstool if necessary.
-sudo apt install python3-vcstool     # or: pip install vcstool
+# Or, in an existing checkout:
+git submodule update --init --recursive
 
-# 3. Fetch every dependency at its pinned version into the workspaces.
-vcs import . < dependencies.repos
-
-# 4. Bring up the containers (see "Running" below); build the workspaces
-#    inside them, e.g. in the spot-ros2 container:
-#    cd spot-ros2_ws && colcon build --symlink-install
+# Then bring up the containers (see "Running") and build inside them, e.g.:
+#   cd spot-ros2_ws && colcon build --symlink-install
 ```
 
-`vcs import` checks out each repository at the `version` field in
-`dependencies.repos` (a commit, tag, or branch) at the path given. This
-replaces the previous submodule setup: it pins versions explicitly in one
-file and does not drift to a branch tip the way `git submodule --remote`
-does. To update a pin later, edit the `version` and re-run `vcs import`.
-
-The Spot driver stack (`spot_ros2`, `spot_wrapper`, `spot_description`) points
-at its public upstreams, which supply the URDF/xacro that
-`curobo_mpc.launch.py` consumes. If your deployment needs site-specific
-changes to these packages, adjust their entries in `dependencies.repos`.
+`git submodule update --init --recursive` checks out each submodule at the exact
+commit recorded here, so the version-critical dependencies (cuRobo, nvblox,
+isaac_ros_common, ZED) always land on the commit used in the experiments. The
+Spot driver stack (`spot_ros2`) tracks upstream `main` and pulls its own
+sub-packages (`spot_wrapper`, `spot_description`, `synchros2`) through the same
+recursive update; run `git submodule update --remote spot-ros2_ws/src/spot_ros2`
+to advance it. Do not use a bare `--remote` on the whole tree, as that would
+move the pinned dependencies off their recorded commits.
 
 ## Running
 
@@ -103,17 +95,16 @@ The MPC node is executed with a dedicated virtual environment (`spot-ros2_ws/cur
 
 ## Dependencies (pinned)
 
-The ROS dependencies below are fetched by `vcs import` at the versions pinned
-in `dependencies.repos`.
+The ROS dependencies below are git submodules (see `.gitmodules`). The
+version-critical ones are pinned to an exact commit; the Spot driver stack
+tracks upstream `main`.
 
 | Dependency | Pinned version | Notes |
 |---|---|---|
 | [cuRobo](https://github.com/NVlabs/curobo) | `ebb7170` (v0.7.7+5) | MPPI MPC, ESDF collision checking |
 | [isaac_ros_nvblox](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_nvblox) | `7908a18` (v3.2 line) | TSDF/ESDF mapping |
 | [isaac_ros_common](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_common) | `fcf4d9e` (v3.2 line) | build/runtime support |
-| [spot_ros2](https://github.com/rai-opensource/spot_ros2) | `main` | robot driver |
-| [spot_wrapper](https://github.com/rai-opensource/spot_wrapper) | `main` | Spot Python wrapper |
-| [spot_description](https://github.com/rai-opensource/spot_description) | `main` | Spot URDF/xacro |
+| [spot_ros2](https://github.com/rai-opensource/spot_ros2) | `main` | robot driver (pulls `spot_wrapper`, `spot_description`, `synchros2`) |
 | [zed-ros2-wrapper](https://github.com/stereolabs/zed-ros2-wrapper) | `e9f5490` (humble-v4.2.5 line) | operator camera |
 | [zed-ros2-interfaces](https://github.com/stereolabs/zed-ros2-interfaces) | `cfffb88` (5.0.1+) | ZED message definitions |
 | Qwen3-VL-4B-Instruct | via vLLM (see `docker-compose.yaml`) | open-vocabulary grounding |
