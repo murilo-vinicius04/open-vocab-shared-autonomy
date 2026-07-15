@@ -50,8 +50,10 @@ with [vcstool](https://github.com/dirk-thomas/vcstool), each pinned to the
 exact version used in the experiments. From the repository root:
 
 ```bash
-# 1. Clone this repository (no --recursive needed).
-git clone <this-repo-url> && cd <this-repo>
+# 1. Clone into a directory named spot-teleop (no --recursive needed).
+#    docker-compose.yaml mounts this directory to /home/spot-teleop inside the
+#    containers, and the internal paths assume that name.
+git clone <repository-url> spot-teleop && cd spot-teleop
 
 # 2. Install vcstool if necessary.
 sudo apt install python3-vcstool     # or: pip install vcstool
@@ -59,7 +61,8 @@ sudo apt install python3-vcstool     # or: pip install vcstool
 # 3. Fetch every dependency at its pinned version into the workspaces.
 vcs import . < dependencies.repos
 
-# 4. Build each workspace as usual, e.g. inside the spot-ros2 container:
+# 4. Bring up the containers (see "Running" below); build the workspaces
+#    inside them, e.g. in the spot-ros2 container:
 #    cd spot-ros2_ws && colcon build --symlink-install
 ```
 
