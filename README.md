@@ -6,9 +6,11 @@ The stack implements vision-based shared-control teleoperation of a quadruped mo
 
 ## Video
 
-[![Video: Open-Vocabulary Shared Autonomy for Robotic Manipulation](https://img.youtube.com/vi/UNAeSZh0kCU/maxresdefault.jpg)](https://www.youtube.com/watch?v=UNAeSZh0kCU)
+[Watch the demonstration video](https://drive.google.com/file/d/1C962rltk_xPM-4pfOvlf88CGkEJcCKJg/view)
 
-*Click the thumbnail to watch the full demonstration, including the industrial valve manipulation and pick-and-place tasks, the collision avoidance stress test, and autonomous execution.*
+The full demonstration includes the industrial valve manipulation and
+pick-and-place tasks, the collision avoidance stress test, and autonomous
+execution.
 
 ## Framework overview
 
