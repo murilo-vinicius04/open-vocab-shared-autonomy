@@ -33,9 +33,6 @@ setup(
     tests_require=["pytest"],
     entry_points={
         "console_scripts": [
-            "isaac_publisher = spot_operation_ros2.isaac_publisher:main",
-            "joint_state_mapper = spot_operation_ros2.joint_state_mapper:main",
-            "joint_state_remapper = spot_operation_ros2.joint_state_remapper:main",
             "gripper_controller = spot_operation_ros2.gripper_controller:main",
             "curobo_mpc_node = spot_operation_ros2.curobo_mpc_node:main",
             "sam2_tracker_node = spot_operation_ros2.sam2_tracker_node:main",

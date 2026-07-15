@@ -32,7 +32,7 @@ The operator is tracked with a ZED 2i RGB-D camera and MediaPipe, with no wearab
 | II-F Autonomous execution | Gesture-triggered mode switch; the MPC tracks the grasp frame directly; gripper control | `spot_operation_ros2/curobo_mpc_node.py`, `control_mode_switcher.py`, `gripper_controller.py` |
 | Simulation | Isaac Sim warehouse demo: Spot + arm driven by the locomanipulation policy (TorchScript), ROS 2 bridged | `isaac-sim_ws/spot_warehouse/` |
 
-`fake_wrist_target.py` publishes a synthetic operator reference for bench tests without the camera interface. `isaac_publisher.py`, `joint_state_mapper.py`, and `joint_state_remapper.py` bridge joint topics for simulation runs.
+`fake_wrist_target.py` publishes a synthetic operator reference for bench tests without the camera interface.
 
 ## Hardware and compute
 

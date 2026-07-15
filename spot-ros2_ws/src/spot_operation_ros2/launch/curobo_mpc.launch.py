@@ -2,10 +2,7 @@
 
 Launches:
   - curobo_mpc_node: cuRobo MPC motion planner (uses venv with cuRobo)
-  - isaac_publisher (teleop=true): relay to Isaac Sim
-  - joint_state_mapper: maps Isaac joints to ROS naming
-  - joint_state_remapper: remaps arm0_* to arm_* for robot_state_publisher
-  - robot_state_publisher: publishes TF for visualization in RViz
+  - gripper_controller: gripper command handling
 """
 
 import os
@@ -13,14 +10,12 @@ import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchContext, LaunchDescription
 from launch.actions import DeclareLaunchArgument, ExecuteProcess, OpaqueFunction
-from launch.conditions import IfCondition
-from launch.substitutions import Command, LaunchConfiguration
+from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
-from launch_ros.parameter_descriptions import ParameterValue
 
 
 def launch_setup(context: LaunchContext):
-    # Get xacro path for robot_state_publisher - use full Spot with arm
+    # Get xacro path for the cuRobo kinematic model - full Spot with arm
     spot_description_dir = get_package_share_directory("spot_description")
     xacro_file = os.path.join(spot_description_dir, "urdf", "spot.urdf.xacro")
 
@@ -128,61 +123,6 @@ def launch_setup(context: LaunchContext):
         },
     )
 
-    # Isaac Publisher in teleop mode
-    isaac_publisher_node = Node(
-        package="spot_operation_ros2",
-        executable="isaac_publisher",
-        name="isaac_publisher",
-        output="screen",
-        parameters=[
-            {"teleop": True, "use_sim_time": LaunchConfiguration("use_sim_time")}
-        ],
-        condition=IfCondition(use_sim),
-    )
-
-    # Joint State Mapper
-    joint_state_mapper_node = Node(
-        package="spot_operation_ros2",
-        executable="joint_state_mapper",
-        name="joint_state_mapper",
-        output="screen",
-        parameters=[{"use_sim_time": LaunchConfiguration("use_sim_time")}],
-        condition=IfCondition(use_sim),
-    )
-
-    # Joint State Remapper - converts arm0_* to arm_* for robot_state_publisher
-    joint_state_remapper_node = Node(
-        package="spot_operation_ros2",
-        executable="joint_state_remapper",
-        name="joint_state_remapper",
-        output="screen",
-        parameters=[{"use_sim_time": LaunchConfiguration("use_sim_time")}],
-        condition=IfCondition(use_sim),
-    )
-
-    # Robot State Publisher - publishes TF from URDF + joint states
-    # Uses xacro to process the URDF with package:// paths
-    # Subscribes to /joint_states_rsp (remapped from arm0_* to arm_*)
-    robot_state_publisher_node = Node(
-        package="robot_state_publisher",
-        executable="robot_state_publisher",
-        name="robot_state_publisher",
-        output="screen",
-        parameters=[
-            {
-                "robot_description": ParameterValue(
-                    Command(["xacro ", xacro_file, " arm:=true"]), value_type=str
-                ),
-                "publish_frequency": 50.0,
-                "use_sim_time": LaunchConfiguration("use_sim_time"),
-            }
-        ],
-        remappings=[
-            ("/joint_states", "/joint_states_rsp"),
-        ],
-        condition=IfCondition(use_sim),
-    )
-
     # Static TF: base -> body — only in sim (real robot already has body frame from Spot driver)
     # base_to_body_tf = Node(
     #     package="tf2_ros",
@@ -215,10 +155,6 @@ def launch_setup(context: LaunchContext):
         # base_to_body_tf,
         curobo_mpc_process,
         gripper_controller_node,
-        isaac_publisher_node,
-        joint_state_mapper_node,
-        joint_state_remapper_node,
-        robot_state_publisher_node,
     ]
 
 
