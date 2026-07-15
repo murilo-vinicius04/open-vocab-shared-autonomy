@@ -28,8 +28,8 @@ setup(
     zip_safe=True,
     maintainer="Anonymous",
     maintainer_email="anonymous@example.com",
-    description="TODO: Package description",
-    license="TODO: License declaration",
+    description="ROS2 package for coordinator, planning, and control node operations on Spot robot using cuRobo MPC and SAM2 tracking.",
+    license="TODO",
     tests_require=["pytest"],
     entry_points={
         "console_scripts": [

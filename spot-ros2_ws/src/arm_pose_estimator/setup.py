@@ -33,7 +33,7 @@ setup(
     maintainer="Anonymous",
     maintainer_email="anonymous@example.com",
     description="Arm pose estimator for ROS 2",
-    license="Apache License 2.0",
+    license="TODO",
     entry_points={
         "console_scripts": [
             "hand_pose_estimator = arm_pose_estimator.hand_pose_estimator:main",

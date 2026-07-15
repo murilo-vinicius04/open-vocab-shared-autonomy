@@ -3,9 +3,9 @@
 <package format="3">
   <name>spot_operation_ros2</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <description>ROS2 package for coordinator, planning, and control node operations on Spot robot using cuRobo MPC and SAM2 tracking.</description>
   <maintainer email="anonymous@example.com">Anonymous</maintainer>
-  <license>TODO: License declaration</license>
+  <license>TODO</license>
 
   <depend>rclpy</depend>
   <depend>sensor_msgs</depend>

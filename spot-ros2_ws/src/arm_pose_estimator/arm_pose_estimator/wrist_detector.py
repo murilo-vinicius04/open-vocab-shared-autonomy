@@ -9,8 +9,6 @@ Subscribed Topics:
     /zed/zed_node/rgb/image_rect_color (sensor_msgs/Image): RGB image from ZED camera
     /zed/zed_node/depth/depth_registered (sensor_msgs/Image): Depth image from ZED camera
     /zed/zed_node/depth/camera_info (sensor_msgs/CameraInfo): Camera info from ZED camera
-
-Author: Generated for spot-teleop
 """
 
 import rclpy

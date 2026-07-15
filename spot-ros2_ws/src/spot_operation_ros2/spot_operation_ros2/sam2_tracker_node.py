@@ -2178,7 +2178,7 @@ class Sam2TrackerNode(Node):
             self.grasp_offset = (0, 0)
 
         # Keep the seed inside the mask so its depth sample is foreground, not the
-        # background behind the object (see _snap_point_into_mask / Q1 fix).
+        # background behind the object (see _snap_point_into_mask).
         snapped = self._snap_point_into_mask(u, v, mask_np)
         grasp_u0, grasp_v0 = snapped if snapped is not None else (mask_u, mask_v)
 
