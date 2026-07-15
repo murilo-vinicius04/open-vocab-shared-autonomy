@@ -45,18 +45,34 @@ The teleoperation interface itself is robot-agnostic: it publishes a Cartesian e
 
 ## Building
 
-Third-party ROS dependencies are pinned as git submodules. Clone recursively:
+Third-party ROS dependencies are listed in `dependencies.repos` and fetched
+with [vcstool](https://github.com/dirk-thomas/vcstool), each pinned to the
+exact version used in the experiments. From the repository root:
 
 ```bash
-git clone --recursive <this-repo-url>
-# or, in an existing checkout:
-git submodule update --init --recursive
+# 1. Clone this repository (no --recursive needed).
+git clone <this-repo-url> && cd <this-repo>
+
+# 2. Install vcstool if necessary.
+sudo apt install python3-vcstool     # or: pip install vcstool
+
+# 3. Fetch every dependency at its pinned version into the workspaces.
+vcs import . < dependencies.repos
+
+# 4. Build each workspace as usual, e.g. inside the spot-ros2 container:
+#    cd spot-ros2_ws && colcon build --symlink-install
 ```
 
-The Spot robot description package (`spot_description`, providing the URDF/xacro
-consumed by `curobo_mpc.launch.py`) is not included here; place a Spot
-description package at `spot-ros2_ws/src/spot_description` before building the
-`spot-ros2` workspace.
+`vcs import` checks out each repository at the `version` field in
+`dependencies.repos` (a commit, tag, or branch) at the path given. This
+replaces the previous submodule setup: it pins versions explicitly in one
+file and does not drift to a branch tip the way `git submodule --remote`
+does. To update a pin later, edit the `version` and re-run `vcs import`.
+
+The Spot driver stack (`spot_ros2`, `spot_wrapper`, `spot_description`) points
+at its public upstreams, which supply the URDF/xacro that
+`curobo_mpc.launch.py` consumes. If your deployment needs site-specific
+changes to these packages, adjust their entries in `dependencies.repos`.
 
 ## Running
 
@@ -84,15 +100,17 @@ The MPC node is executed with a dedicated virtual environment (`spot-ros2_ws/cur
 
 ## Dependencies (pinned)
 
-All ROS dependencies below are pinned as git submodules at the exact commits
-used in the experiments (see `.gitmodules`).
+The ROS dependencies below are fetched by `vcs import` at the versions pinned
+in `dependencies.repos`.
 
-| Dependency | Pinned commit | Notes |
+| Dependency | Pinned version | Notes |
 |---|---|---|
 | [cuRobo](https://github.com/NVlabs/curobo) | `ebb7170` (v0.7.7+5) | MPPI MPC, ESDF collision checking |
 | [isaac_ros_nvblox](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_nvblox) | `7908a18` (v3.2 line) | TSDF/ESDF mapping |
 | [isaac_ros_common](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_common) | `fcf4d9e` (v3.2 line) | build/runtime support |
-| [spot_ros2](https://github.com/bdaiinstitute/spot_ros2) | `4143c50` (spot-sdk-4.0.0+) | robot driver |
+| [spot_ros2](https://github.com/rai-opensource/spot_ros2) | `main` | robot driver |
+| [spot_wrapper](https://github.com/rai-opensource/spot_wrapper) | `main` | Spot Python wrapper |
+| [spot_description](https://github.com/rai-opensource/spot_description) | `main` | Spot URDF/xacro |
 | [zed-ros2-wrapper](https://github.com/stereolabs/zed-ros2-wrapper) | `e9f5490` (humble-v4.2.5 line) | operator camera |
 | [zed-ros2-interfaces](https://github.com/stereolabs/zed-ros2-interfaces) | `cfffb88` (5.0.1+) | ZED message definitions |
 | Qwen3-VL-4B-Instruct | via vLLM (see `docker-compose.yaml`) | open-vocabulary grounding |
@@ -101,18 +119,4 @@ used in the experiments (see `.gitmodules`).
 
 The VLM, SAM 2, and MediaPipe models are pulled at build time by the Docker
 images and the Python requirements, not vendored here.
-
-## Citation
-
-If you use this code in your research, please cite the paper:
-
-```bibtex
-@article{openvocab_shared_autonomy_2026,
-  title   = {From Perception to Assistance: Open-Vocabulary Shared Autonomy for Robotic Manipulation},
-  author  = {},
-  journal = {arXiv preprint},
-  year    = {2026},
-  note    = {Submitted to IEEE Robotics and Automation Letters}
-}
-```
 
