@@ -30,6 +30,7 @@ The operator is tracked with a ZED 2i RGB-D camera and MediaPipe, with no wearab
 | II-D Collision-aware MPC | cuRobo MPPI MPC node, ESDF interface, collision spheres | `spot_operation_ros2/curobo_mpc_node.py`, `config/` |
 | II-E Potential-field assistance | Attractive field toward the grasp frame (inside the MPC node goal update) | `spot_operation_ros2/curobo_mpc_node.py` |
 | II-F Autonomous execution | Gesture-triggered mode switch; the MPC tracks the grasp frame directly; gripper control | `spot_operation_ros2/curobo_mpc_node.py`, `control_mode_switcher.py`, `gripper_controller.py` |
+| Simulation | Isaac Sim warehouse demo: Spot + arm driven by the locomanipulation policy (TorchScript), ROS 2 bridged | `isaac-sim_ws/spot_warehouse/` |
 
 `fake_wrist_target.py` publishes a synthetic operator reference for bench tests without the camera interface. `isaac_publisher.py`, `joint_state_mapper.py`, and `joint_state_remapper.py` bridge joint topics for simulation runs.
 
@@ -77,6 +78,7 @@ The stack is containerized; services are defined in `docker-compose.yaml`:
 - `zed` — ZED 2i camera driver for the operator-facing camera
 - `isaac-ros` — nvblox volumetric mapping
 - `vllm-server` — Qwen3-VL-4B-Instruct served over an OpenAI-compatible API
+- `isaac-sim` — NVIDIA Isaac Sim, for the simulated warehouse demo (optional)
 
 Typical bring-up on the robot:
 
@@ -92,6 +94,26 @@ ros2 launch spot_nvblox spot_nvblox.launch.py                      # TSDF/ESDF m
 ```
 
 The MPC node is executed with a dedicated virtual environment (`spot-ros2_ws/curobo_venv`, referenced by `curobo_mpc.launch.py`) in which cuRobo and its PyTorch dependencies are installed inside the `spot-ros2` container, following the upstream cuRobo installation instructions.
+
+## Isaac Sim locomanipulation demo
+
+`isaac-sim_ws/spot_warehouse/` is a self-contained Isaac Sim application that
+spawns Spot with the arm in a cluttered warehouse and drives it with the
+locomanipulation policy (a self-contained TorchScript module shipped at
+`spot_warehouse/policies/spot_warehouse_policy.pt`). It publishes the same
+ROS 2 topics as the real robot, so the perception and MPC stacks above can run
+against the simulation (`use_sim` paths).
+
+```bash
+docker compose up -d isaac-sim
+docker compose exec isaac-sim bash
+# inside the container (GUI mode; the workspace is mounted at /workspace):
+/workspace/spot_warehouse/applications/run_spot_warehouse.sh
+# optionally: --policy <path/to/policy.pt>, --obs-mode {loco,arm}
+```
+
+See `isaac-sim_ws/spot_warehouse/README.md` for details and attribution
+(the app derives from the Apache-2.0 IsaacRobotics project).
 
 ## Dependencies (pinned)
 

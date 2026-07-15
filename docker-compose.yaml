@@ -89,6 +89,31 @@ services:
         exec bash
       "
 
+  isaac-sim:
+    build:
+      context: .
+      dockerfile: Dockerfile.isaac-sim
+    runtime: nvidia
+    gpus: all
+    network_mode: host
+    ipc: host
+    privileged: true
+    environment:
+      - ACCEPT_EULA=Y
+      - PRIVACY_CONSENT=Y
+      - ROS_DOMAIN_ID=8
+      - RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+      # GUI (the warehouse app is run in GUI mode)
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+      - NVIDIA_DRIVER_CAPABILITIES=all
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ./isaac-sim_ws:/workspace:rw
+    stdin_open: true
+    tty: true
+    entrypoint: [ "/bin/bash", "-lc", "sleep infinity" ] # do not start Isaac Sim automatically
+
   isaac-ros:
     build:
       context: .

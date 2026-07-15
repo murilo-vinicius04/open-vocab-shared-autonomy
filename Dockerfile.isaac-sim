@@ -1,0 +1,19 @@
+# Official Isaac Sim base image (adjust the tag to the version available on NGC)
+FROM nvcr.io/nvidia/isaac-sim:5.1.0
+LABEL maintainer="Anonymous"
+
+# Terms required by the Isaac Sim container
+ENV ACCEPT_EULA=Y \
+    PRIVACY_CONSENT=Y
+
+# Switch to root to install packages
+USER root
+
+# Basic packages
+RUN apt update && apt install -y git wget build-essential python3 libusb-1.0-0 libusb-1.0-0-dev
+
+# Workspace directory, kept separate from the Isaac Sim binaries
+RUN mkdir -p /workspace
+
+# Working directory is the workspace (do not overwrite /isaac-sim)
+WORKDIR /workspace
