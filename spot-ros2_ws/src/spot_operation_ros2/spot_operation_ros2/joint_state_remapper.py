@@ -16,32 +16,29 @@ from sensor_msgs.msg import JointState
 
 class JointStateRemapper(Node):
     def __init__(self):
-        super().__init__('joint_state_remapper')
-        
+        super().__init__("joint_state_remapper")
+
         # Subscribe to cuRobo joint commands
         self.sub = self.create_subscription(
-            JointState,
-            '/joint_command_curobo',
-            self.callback,
-            10
+            JointState, "/joint_command_curobo", self.callback, 10
         )
-        
+
         # Publish remapped joint states for robot_state_publisher
-        self.pub = self.create_publisher(JointState, '/joint_states_rsp', 10)
-        
-        self.get_logger().info('Joint State Remapper: arm0_* -> arm_*')
-        
+        self.pub = self.create_publisher(JointState, "/joint_states_rsp", 10)
+
+        self.get_logger().info("Joint State Remapper: arm0_* -> arm_*")
+
     def callback(self, msg: JointState):
         # Create new message with remapped names
         out = JointState()
         out.header = msg.header
-        
+
         # Remap: arm0_sh0 -> arm_sh0, arm0_el0 -> arm_el0, etc.
-        out.name = [name.replace('arm0_', 'arm_') for name in msg.name]
+        out.name = [name.replace("arm0_", "arm_") for name in msg.name]
         out.position = msg.position
         out.velocity = msg.velocity
         out.effort = msg.effort
-        
+
         self.pub.publish(out)
 
 
@@ -57,5 +54,5 @@ def main(args=None):
         rclpy.shutdown()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

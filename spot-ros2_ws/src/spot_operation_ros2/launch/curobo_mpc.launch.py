@@ -54,7 +54,10 @@ def launch_setup(context: LaunchContext):
         "-p",
         ["voxel_size:=", LaunchConfiguration("voxel_size")],
         "-p",
-        ["extra_collision_sphere_buffer:=", LaunchConfiguration("extra_collision_sphere_buffer")],
+        [
+            "extra_collision_sphere_buffer:=",
+            LaunchConfiguration("extra_collision_sphere_buffer"),
+        ],
         "-p",
         ["esdf_frame_id:=", LaunchConfiguration("esdf_frame_id")],
         "-p",

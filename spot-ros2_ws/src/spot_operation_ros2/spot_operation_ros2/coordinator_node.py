@@ -31,14 +31,18 @@ class CoordinatorNode(Node):
         seed_command_topic = self.get_parameter("seed_command_topic").value
         service_name = self.get_parameter("vlm_service_name").value
         loop_hz = float(max(0.5, self.get_parameter("loop_hz").value))
-        self.max_seed_age_sec = float(max(1.0, self.get_parameter("max_seed_age_sec").value))
+        self.max_seed_age_sec = float(
+            max(1.0, self.get_parameter("max_seed_age_sec").value)
+        )
         self.relocalize_cooldown_sec = float(
             max(0.0, self.get_parameter("relocalize_cooldown_sec").value)
         )
         self.seed_apply_grace_sec = float(
             max(0.0, self.get_parameter("seed_apply_grace_sec").value)
         )
-        self.disable_auto_relocalize_on_lost = self.get_parameter("disable_auto_relocalize_on_lost").value
+        self.disable_auto_relocalize_on_lost = self.get_parameter(
+            "disable_auto_relocalize_on_lost"
+        ).value
         self._use_sim_time_effective = bool(self.get_parameter("use_sim_time").value)
 
         self.state = "IDLE"
@@ -67,13 +71,14 @@ class CoordinatorNode(Node):
             # Tracker locked on target: clear grace window.
             self._seed_apply_deadline = 0.0
 
-
     def _prompt_change_cb(self, msg: String):
         """Handle prompt change notifications from VLM node."""
         new_id = int(msg.data)
         if new_id > self._current_prompt_change_id:
             self._current_prompt_change_id = new_id
-            self.get_logger().info(f"[COORD] Prompt change detected (id={new_id}), triggering VLM")
+            self.get_logger().info(
+                f"[COORD] Prompt change detected (id={new_id}), triggering VLM"
+            )
             self._request_vlm_relocalize()
 
     def _request_vlm_relocalize(self):
@@ -96,6 +101,7 @@ class CoordinatorNode(Node):
         state_msg = String()
         state_msg.data = self.state
         self._state_pub.publish(state_msg)
+
     def _tick(self):
         now = time.time()
         if self.tracking_state == "TRACKING":
@@ -157,4 +163,3 @@ def main(args=None):
         node.destroy_node()
         if rclpy.ok():
             rclpy.shutdown()
-

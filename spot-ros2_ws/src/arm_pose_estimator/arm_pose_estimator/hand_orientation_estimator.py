@@ -32,27 +32,26 @@ def quaternion_from_euler(roll, pitch, yaw):
 
 class HandOrientationEstimator(Node):
     def __init__(self):
-        super().__init__('hand_orientation_estimator')
+        super().__init__("hand_orientation_estimator")
         self.bridge = CvBridge()
 
-        self.declare_parameter('color_topic', '/camera/camera/color/image_raw')
-        self.color_topic = self.get_parameter('color_topic').value
+        self.declare_parameter("color_topic", "/camera/camera/color/image_raw")
+        self.color_topic = self.get_parameter("color_topic").value
 
         # EMA alpha for roll angle smoothing (0 = max smooth/lag, 1 = no smoothing)
-        self.declare_parameter('ema_alpha', 0.2)
-        self.ema_alpha = self.get_parameter('ema_alpha').value
+        self.declare_parameter("ema_alpha", 0.2)
+        self.ema_alpha = self.get_parameter("ema_alpha").value
 
-        self.get_logger().info(f'Subscribing to color topic: {self.color_topic}')
-        self.get_logger().info(f'EMA alpha: {self.ema_alpha}')
+        self.get_logger().info(f"Subscribing to color topic: {self.color_topic}")
+        self.get_logger().info(f"EMA alpha: {self.ema_alpha}")
 
         self.image_sub = self.create_subscription(
-            Image,
-            self.color_topic,
-            self.image_callback,
-            10
+            Image, self.color_topic, self.image_callback, 10
         )
         self.quat_pub = self.create_publisher(Quaternion, "/hand_roll_quat", 10)
-        self.gesture_sub = self.create_subscription(String, "hand_gesture", self._gesture_cb, 10)
+        self.gesture_sub = self.create_subscription(
+            String, "hand_gesture", self._gesture_cb, 10
+        )
 
         self.current_gesture = 0
         self.block_duration = 2.0
@@ -62,8 +61,11 @@ class HandOrientationEstimator(Node):
         # MediaPipe
         mp_hands = mp.solutions.hands
         self.hands = mp_hands.Hands(
-            static_image_mode=False, max_num_hands=1,
-            min_detection_confidence=0.6, min_tracking_confidence=0.8)
+            static_image_mode=False,
+            max_num_hands=1,
+            min_detection_confidence=0.6,
+            min_tracking_confidence=0.8,
+        )
 
         # EMA state (circular smoothing via sin/cos to handle angle wrapping)
         self._roll_sin = None
@@ -74,7 +76,7 @@ class HandOrientationEstimator(Node):
         self.queue = deque()
 
         self.timer = self.create_timer(0.01, self._publish_delayed)
-        self.get_logger().info('Hand orientation estimator (EMA + Roll) started.')
+        self.get_logger().info("Hand orientation estimator (EMA + Roll) started.")
 
     def _gesture_cb(self, msg):
         gesture_name = msg.data
@@ -93,7 +95,7 @@ class HandOrientationEstimator(Node):
         t_now = time.time()
 
         try:
-            frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
+            frame = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
         except Exception as e:
             self.get_logger().warn(f"CvBridge error: {e}")
             return
@@ -105,7 +107,11 @@ class HandOrientationEstimator(Node):
         normal_text = ""
 
         # If within the block period, publish last quaternion but still process frame for debug
-        in_block = self.current_gesture == 1 and t_now < self.block_until and self.last_quat_msg
+        in_block = (
+            self.current_gesture == 1
+            and t_now < self.block_until
+            and self.last_quat_msg
+        )
         if in_block:
             self.quat_pub.publish(self.last_quat_msg)
 
@@ -155,7 +161,10 @@ class HandOrientationEstimator(Node):
 
             mp_draw = mp.solutions.drawing_utils
             mp_draw.draw_landmarks(
-                debug_frame, res.multi_hand_landmarks[0], mp.solutions.hands.HAND_CONNECTIONS)
+                debug_frame,
+                res.multi_hand_landmarks[0],
+                mp.solutions.hands.HAND_CONNECTIONS,
+            )
 
             h, w, _ = debug_frame.shape
             lm2d = res.multi_hand_landmarks[0].landmark
@@ -166,31 +175,85 @@ class HandOrientationEstimator(Node):
 
             center = (w // 2, h // 2)
             length = 100
-            end_pt = (int(center[0] + length * math.cos(roll_angle)),
-                      int(center[1] + length * math.sin(roll_angle)))
+            end_pt = (
+                int(center[0] + length * math.cos(roll_angle)),
+                int(center[1] + length * math.sin(roll_angle)),
+            )
             cv2.line(debug_frame, center, end_pt, (0, 255, 0), 3)
             cv2.circle(debug_frame, center, 5, (0, 0, 255), -1)
 
-        self._draw_debug(debug_frame, hand_detected, in_block, roll_deg, dir_deg, normal_text)
+        self._draw_debug(
+            debug_frame, hand_detected, in_block, roll_deg, dir_deg, normal_text
+        )
 
-    def _draw_debug(self, frame, hand_detected, in_block=False, roll_deg=0.0, dir_deg=0.0, normal_text=""):
+    def _draw_debug(
+        self,
+        frame,
+        hand_detected,
+        in_block=False,
+        roll_deg=0.0,
+        dir_deg=0.0,
+        normal_text="",
+    ):
         if hand_detected:
-            cv2.putText(frame, f"Normal Roll: {roll_deg:.1f} deg", (50, 50),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
-            cv2.putText(frame, f"Hand Dir: {dir_deg:.1f} deg", (50, 85),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
+            cv2.putText(
+                frame,
+                f"Normal Roll: {roll_deg:.1f} deg",
+                (50, 50),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.8,
+                (0, 255, 0),
+                2,
+            )
+            cv2.putText(
+                frame,
+                f"Hand Dir: {dir_deg:.1f} deg",
+                (50, 85),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.8,
+                (255, 255, 255),
+                2,
+            )
             if normal_text:
-                cv2.putText(frame, f"Normal: {normal_text}", (50, 120),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (200, 200, 200), 2)
+                cv2.putText(
+                    frame,
+                    f"Normal: {normal_text}",
+                    (50, 120),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.6,
+                    (200, 200, 200),
+                    2,
+                )
             if in_block:
-                cv2.putText(frame, "FROZEN (fist)", (50, 155),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 165, 255), 2)
+                cv2.putText(
+                    frame,
+                    "FROZEN (fist)",
+                    (50, 155),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.8,
+                    (0, 165, 255),
+                    2,
+                )
         else:
-            cv2.putText(frame, "No hand detected", (50, 50),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 255), 2)
+            cv2.putText(
+                frame,
+                "No hand detected",
+                (50, 50),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.9,
+                (0, 0, 255),
+                2,
+            )
             if in_block:
-                cv2.putText(frame, "FROZEN (fist)", (50, 90),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 165, 255), 2)
+                cv2.putText(
+                    frame,
+                    "FROZEN (fist)",
+                    (50, 90),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.8,
+                    (0, 165, 255),
+                    2,
+                )
 
         cv2.imshow("Hand Orientation Debug", frame)
         cv2.waitKey(1)
@@ -216,5 +279,5 @@ def main(args=None):
             rclpy.shutdown()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

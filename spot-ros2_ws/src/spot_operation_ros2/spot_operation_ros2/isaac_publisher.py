@@ -7,6 +7,7 @@ Supports two modes via 'teleop' parameter:
   - teleop=false (default): reads from /arm_controller/controller_state
   - teleop=true: reads from /joint_command_curobo (cuRobo MPC)
 """
+
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
@@ -41,7 +42,9 @@ class JointStateRelay(Node):
         else:
             # Default mode: subscribe to the arm_controller
             self.declare_parameter("input_topic", "/arm_controller/controller_state")
-            input_topic = self.get_parameter("input_topic").get_parameter_value().string_value
+            input_topic = (
+                self.get_parameter("input_topic").get_parameter_value().string_value
+            )
 
             self.sub = self.create_subscription(
                 JointTrajectoryControllerState,
@@ -122,7 +125,9 @@ class JointStateRelay(Node):
         # Try to fill velocity/effort if available
         vel = getattr(msg, "actual", None) and getattr(msg.actual, "velocities", None)
         if not vel:
-            vel = getattr(msg, "output", None) and getattr(msg.output, "velocities", None)
+            vel = getattr(msg, "output", None) and getattr(
+                msg.output, "velocities", None
+            )
         eff = getattr(msg, "actual", None) and getattr(msg.actual, "effort", None)
 
         new_msg.velocity = [vel[i] for i in arm_joints_indices] if vel else []

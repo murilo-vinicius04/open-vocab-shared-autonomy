@@ -33,8 +33,8 @@ def roll_deg_from_quaternion(x: float, y: float, z: float, w: float) -> float:
     the optical axis does not move that axis, so the angle never tracked the roll.
     World-up in the camera frame DOES rotate 1:1 with roll. Degenerate only when the
     camera looks almost exactly along gravity (world-up projects to ~0 in-image)."""
-    up_x = 2.0 * (x * z - w * y)   # world-up . camera-x  (image right)
-    up_y = 2.0 * (y * z + w * x)   # world-up . camera-y  (image down)
+    up_x = 2.0 * (x * z - w * y)  # world-up . camera-x  (image right)
+    up_y = 2.0 * (y * z + w * x)  # world-up . camera-y  (image down)
     return math.degrees(math.atan2(up_x, -up_y))
 
 
@@ -77,12 +77,17 @@ def reroll_mask_to_original(mask_upright, M_forward, original_size):
     orig_w, orig_h = original_size
     M_inv = cv2.invertAffineTransform(M_forward)
     return cv2.warpAffine(
-        mask_upright, M_inv, (orig_w, orig_h),
-        flags=cv2.INTER_NEAREST, borderValue=0,
+        mask_upright,
+        M_inv,
+        (orig_w, orig_h),
+        flags=cv2.INTER_NEAREST,
+        borderValue=0,
     )
 
 
-def inverse_rotate_coords_1000(bbox_1000, grasps_1000, M_forward, rotated_size, original_size):
+def inverse_rotate_coords_1000(
+    bbox_1000, grasps_1000, M_forward, rotated_size, original_size
+):
     """Map a bbox + grasp points from rotated [0-1000] space back to original
     [0-1000] space (used by the single-shot VLM detect path)."""
     rot_w, rot_h = rotated_size
@@ -94,7 +99,9 @@ def inverse_rotate_coords_1000(bbox_1000, grasps_1000, M_forward, rotated_size, 
     xmax = bbox_1000[2] / 1000.0 * rot_w
     ymax = bbox_1000[3] / 1000.0 * rot_h
 
-    corners = np.array([[xmin, ymin], [xmax, ymin], [xmax, ymax], [xmin, ymax]], dtype=np.float64)
+    corners = np.array(
+        [[xmin, ymin], [xmax, ymin], [xmax, ymax], [xmin, ymax]], dtype=np.float64
+    )
     corners_h = np.hstack([corners, np.ones((4, 1), dtype=np.float64)])
     orig_corners = (M_inv @ corners_h.T).T
 
@@ -111,7 +118,7 @@ def inverse_rotate_coords_1000(bbox_1000, grasps_1000, M_forward, rotated_size, 
     ]
 
     corrected_grasps = []
-    for g in (grasps_1000 or []):
+    for g in grasps_1000 or []:
         gx_px = g[0] / 1000.0 * rot_w
         gy_px = g[1] / 1000.0 * rot_h
         pt_h = np.array([gx_px, gy_px, 1.0])

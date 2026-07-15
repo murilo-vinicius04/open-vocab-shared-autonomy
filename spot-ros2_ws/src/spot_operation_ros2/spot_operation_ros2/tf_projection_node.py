@@ -37,9 +37,13 @@ class TFProjectionNode(Node):
         self.declare_parameter("tf_lookup_timeout_sec", 1.0)
         self.declare_parameter("tf_buffer_cache_time_sec", 120.0)
         self.declare_parameter("secondary_cameras", "")
-        self.declare_parameter("reloc_reference_tolerance_m", 0.4)  # max dist from first detection to accept re-seed
+        self.declare_parameter(
+            "reloc_reference_tolerance_m", 0.4
+        )  # max dist from first detection to accept re-seed
         self.declare_parameter("camera_info_topic", "/hand/camera_info")
-        self.declare_parameter("secondary_camera_info_topic_pattern", "/{cam}/camera_info")
+        self.declare_parameter(
+            "secondary_camera_info_topic_pattern", "/{cam}/camera_info"
+        )
         self.declare_parameter("hand_camera_frame", "hand_color_image_sensor")
         self.declare_parameter("camera_speed_reference_frame", "vision")
         self.declare_parameter("camera_speed_topic", "/hand/camera_speed")
@@ -50,17 +54,29 @@ class TFProjectionNode(Node):
 
         tracking_3d_topic = str(self.get_parameter("tracking_3d_topic").value)
         tracking_state_topic = str(self.get_parameter("tracking_state_topic").value)
-        tracking_point_topic = tracking_3d_topic if tracking_3d_topic else "/tracking_3d_point"
+        tracking_point_topic = (
+            tracking_3d_topic if tracking_3d_topic else "/tracking_3d_point"
+        )
         target_pose_topic = str(self.get_parameter("target_pose_topic").value)
         self.target_frame_name = str(self.get_parameter("target_frame_name").value)
         self.target_parent_frame = str(self.get_parameter("target_parent_frame").value)
-        self.hold_last_target_on_lost = bool(self.get_parameter("hold_last_target_on_lost").value)
-        self.target_publish_hz = float(max(0.5, self.get_parameter("target_publish_hz").value))
+        self.hold_last_target_on_lost = bool(
+            self.get_parameter("hold_last_target_on_lost").value
+        )
+        self.target_publish_hz = float(
+            max(0.5, self.get_parameter("target_publish_hz").value)
+        )
         self.target_ema_alpha = float(self.get_parameter("target_ema_alpha").value)
-        self.target_jump_reject_m = float(self.get_parameter("target_jump_reject_m").value)
-        self.target_jump_relatch_count = int(self.get_parameter("target_jump_relatch_count").value)
+        self.target_jump_reject_m = float(
+            self.get_parameter("target_jump_reject_m").value
+        )
+        self.target_jump_relatch_count = int(
+            self.get_parameter("target_jump_relatch_count").value
+        )
         self._jump_count = 0  # consecutive far readings (for re-latch on a real move)
-        self.max_target_abs_m = float(max(1.0, self.get_parameter("max_target_abs_m").value))
+        self.max_target_abs_m = float(
+            max(1.0, self.get_parameter("max_target_abs_m").value)
+        )
         self.tf_future_tolerance_sec = float(
             max(0.0, self.get_parameter("tf_future_tolerance_sec").value)
         )
@@ -83,10 +99,12 @@ class TFProjectionNode(Node):
         self._tracking_state = "UNKNOWN"
         self._last_valid_target = None  # (x, y, z) in target_parent_frame (vision/odom)
         self._ema_target = None
-        self._last_vision_pt = None     # (x, y, z) in target_parent_frame — set on seed, used as depth fallback
+        self._last_vision_pt = None  # (x, y, z) in target_parent_frame — set on seed, used as depth fallback
         self._reference_vision_pt = None  # vision-frame position from FIRST successful detection — immutable reference
         self._latest_cam_speed = 0.0
-        self._pending_force_reinit_pt = None  # (odom_x, odom_y, odom_z) deferred until camera stable
+        self._pending_force_reinit_pt = (
+            None  # (odom_x, odom_y, odom_z) deferred until camera stable
+        )
 
         self._pose_pub = self.create_publisher(PoseStamped, target_pose_topic, 10)
         # Geometry depth fallback: continuously republish the known vision-frame object position
@@ -102,19 +120,27 @@ class TFProjectionNode(Node):
         self._state_sub = self.create_subscription(
             String, tracking_state_topic, self._tracking_state_cb, 10
         )
-        self._target_publish_timer = self.create_timer(1.0 / self.target_publish_hz, self._target_publish_cb)
+        self._target_publish_timer = self.create_timer(
+            1.0 / self.target_publish_hz, self._target_publish_cb
+        )
 
         # Camera speed publisher (for VLM stability gate)
         self._hand_camera_frame = str(self.get_parameter("hand_camera_frame").value)
-        self._cam_speed_ref_frame = str(self.get_parameter("camera_speed_reference_frame").value)
+        self._cam_speed_ref_frame = str(
+            self.get_parameter("camera_speed_reference_frame").value
+        )
         self._cam_speed_pub = self.create_publisher(
             Float64, str(self.get_parameter("camera_speed_topic").value), 10
         )
         self._prev_cam_pos = None
         self._prev_cam_pos_time = None
         cam_speed_hz = float(max(1.0, self.get_parameter("camera_speed_hz").value))
-        self._cam_speed_timer = self.create_timer(1.0 / cam_speed_hz, self._publish_cam_speed)
-        self._secondary_reinit_speed_gate_m_s = float(self.get_parameter("secondary_reinit_speed_gate_m_s").value)
+        self._cam_speed_timer = self.create_timer(
+            1.0 / cam_speed_hz, self._publish_cam_speed
+        )
+        self._secondary_reinit_speed_gate_m_s = float(
+            self.get_parameter("secondary_reinit_speed_gate_m_s").value
+        )
 
         # Seed reprojection: 3D@T0 → pixel@T_now
         self._seed_3d_sub = self.create_subscription(
@@ -131,8 +157,12 @@ class TFProjectionNode(Node):
         self._seed_pixel_ttl_sec = float(
             max(0.5, self.get_parameter("seed_pixel_active_ttl_sec").value)
         )
-        seed_pixel_hz = float(max(1.0, self.get_parameter("seed_pixel_publish_hz").value))
-        self._seed_pixel_hand_frame = None  # hand camera frame_id (set on first _seed_3d_cb)
+        seed_pixel_hz = float(
+            max(1.0, self.get_parameter("seed_pixel_publish_hz").value)
+        )
+        self._seed_pixel_hand_frame = (
+            None  # hand camera frame_id (set on first _seed_3d_cb)
+        )
         self._seed_pixel_timer = self.create_timer(
             1.0 / seed_pixel_hz, self._publish_seed_pixel_continuous
         )
@@ -144,20 +174,26 @@ class TFProjectionNode(Node):
 
         # Secondary cameras: reprojection of tracking point for FOV-gated seeding
         secondary_cameras_str = str(self.get_parameter("secondary_cameras").value)
-        self._secondary_cameras = [c.strip() for c in secondary_cameras_str.split(',') if c.strip()]
-        self._secondary_intrinsics = {}   # cam → (fx, fy, cx, cy)
-        self._secondary_image_size = {}   # cam → (w, h)
+        self._secondary_cameras = [
+            c.strip() for c in secondary_cameras_str.split(",") if c.strip()
+        ]
+        self._secondary_intrinsics = {}  # cam → (fx, fy, cx, cy)
+        self._secondary_image_size = {}  # cam → (w, h)
         self._secondary_seed_pixel_pubs = {}
         for cam in self._secondary_cameras:
-            secondary_camera_info_topic = secondary_camera_info_topic_pattern.replace("{cam}", cam)
+            secondary_camera_info_topic = secondary_camera_info_topic_pattern.replace(
+                "{cam}", cam
+            )
             self._secondary_intrinsics[cam] = None
             self._secondary_image_size[cam] = None
             self._secondary_seed_pixel_pubs[cam] = self.create_publisher(
                 PointStamped, f"/{cam}/tracking/seed_pixel", 10
             )
             self.create_subscription(
-                CameraInfo, secondary_camera_info_topic,
-                lambda msg, c=cam: self._secondary_camera_info_cb(msg, c), 10
+                CameraInfo,
+                secondary_camera_info_topic,
+                lambda msg, c=cam: self._secondary_camera_info_cb(msg, c),
+                10,
             )
         if self._secondary_cameras:
             # Continuous secondary reprojection at 10Hz from the stable vision-frame
@@ -224,7 +260,9 @@ class TFProjectionNode(Node):
                 self.get_logger().info(
                     f"[TF] Firing deferred secondary force_reinit (speed={self._latest_cam_speed:.3f} m/s)"
                 )
-                self._reproject_to_secondary(x, y, z, Duration(seconds=0.0), force_reinit=True)
+                self._reproject_to_secondary(
+                    x, y, z, Duration(seconds=0.0), force_reinit=True
+                )
             # else: still moving — keep pending
 
         # Normal 10Hz update-only seeds from stable vision-frame position
@@ -233,15 +271,21 @@ class TFProjectionNode(Node):
         x, y, z = self._last_vision_pt
         self._reproject_to_secondary(x, y, z, Duration(seconds=0.0), force_reinit=False)
 
-    def _lookup_transform_at_stamp(self, source_frame: str, stamp_msg) -> TransformStamped:
+    def _lookup_transform_at_stamp(
+        self, source_frame: str, stamp_msg
+    ) -> TransformStamped:
         st = rclpy.time.Time.from_msg(stamp_msg)
         timeout = Duration(seconds=self.tf_lookup_timeout_sec)
         try:
-            return self.tf_buffer.lookup_transform(self.target_parent_frame, source_frame, st, timeout=timeout)
+            return self.tf_buffer.lookup_transform(
+                self.target_parent_frame, source_frame, st, timeout=timeout
+            )
         except Exception as exc:
             txt = str(exc)
             # Future extrapolation: requested > latest
-            m_future = re.search(r"Requested time ([\d.]+) but the latest data is at time ([\d.]+)", txt)
+            m_future = re.search(
+                r"Requested time ([\d.]+) but the latest data is at time ([\d.]+)", txt
+            )
             if m_future:
                 req = float(m_future.group(1))
                 latest = float(m_future.group(2))
@@ -255,7 +299,10 @@ class TFProjectionNode(Node):
                         timeout=timeout,
                     )
             # Past extrapolation: requested < earliest — snapshot taken before TF buffer had data
-            m_past = re.search(r"Requested time ([\d.]+) but the earliest data is at time ([\d.]+)", txt)
+            m_past = re.search(
+                r"Requested time ([\d.]+) but the earliest data is at time ([\d.]+)",
+                txt,
+            )
             if m_past:
                 req = float(m_past.group(1))
                 earliest = float(m_past.group(2))
@@ -286,7 +333,10 @@ class TFProjectionNode(Node):
         if self._secondary_intrinsics.get(cam) is not None:
             return
         self._secondary_intrinsics[cam] = (
-            float(msg.k[0]), float(msg.k[4]), float(msg.k[2]), float(msg.k[5])
+            float(msg.k[0]),
+            float(msg.k[4]),
+            float(msg.k[2]),
+            float(msg.k[5]),
         )
         # Use the TF frame_id from the CameraInfo header, not the topic prefix
         tf_frame = str(msg.header.frame_id) if msg.header.frame_id else cam
@@ -295,7 +345,14 @@ class TFProjectionNode(Node):
             f"Camera intrinsics set for {cam}: {self._secondary_intrinsics[cam]} tf_frame={tf_frame}"
         )
 
-    def _reproject_to_secondary(self, odom_x: float, odom_y: float, odom_z: float, timeout, force_reinit: bool = False):
+    def _reproject_to_secondary(
+        self,
+        odom_x: float,
+        odom_y: float,
+        odom_z: float,
+        timeout,
+        force_reinit: bool = False,
+    ):
         """Project an odom-frame point into each secondary camera; publish seed_pixel if in FOV.
         force_reinit=True: sent from one-shot VLM re-seed → secondary SAM2 must reinitialize.
         force_reinit=False: sent from continuous tracking → only update hint, no reinit if already tracking.
@@ -309,10 +366,16 @@ class TFProjectionNode(Node):
             w, h, tf_frame = size_info
             try:
                 t = self.tf_buffer.lookup_transform(
-                    tf_frame, self.target_parent_frame, rclpy.time.Time(), timeout=timeout
+                    tf_frame,
+                    self.target_parent_frame,
+                    rclpy.time.Time(),
+                    timeout=timeout,
                 )
             except Exception as exc:
-                self.get_logger().warn(f"TF lookup for {cam} ({tf_frame}): {exc}", throttle_duration_sec=2.0)
+                self.get_logger().warn(
+                    f"TF lookup for {cam} ({tf_frame}): {exc}",
+                    throttle_duration_sec=2.0,
+                )
                 continue
             tx = t.transform.translation.x
             ty = t.transform.translation.y
@@ -321,7 +384,9 @@ class TFProjectionNode(Node):
             qy = t.transform.rotation.y
             qz = t.transform.rotation.z
             qw = t.transform.rotation.w
-            cx, cy, cz = self._rotate_point_by_quaternion(odom_x, odom_y, odom_z, qx, qy, qz, qw)
+            cx, cy, cz = self._rotate_point_by_quaternion(
+                odom_x, odom_y, odom_z, qx, qy, qz, qw
+            )
             cam_x, cam_y, cam_z = cx + tx, cy + ty, cz + tz
             if cam_z <= 0.0:
                 continue  # behind the camera
@@ -348,9 +413,16 @@ class TFProjectionNode(Node):
     def _camera_info_cb(self, msg: CameraInfo):
         if self.camera_intrinsics is not None:
             return
-        self.camera_intrinsics = (float(msg.k[0]), float(msg.k[4]), float(msg.k[2]), float(msg.k[5]))
+        self.camera_intrinsics = (
+            float(msg.k[0]),
+            float(msg.k[4]),
+            float(msg.k[2]),
+            float(msg.k[5]),
+        )
         self._hand_image_size = (int(msg.width), int(msg.height))
-        self.get_logger().info(f"Camera intrinsics set: {self.camera_intrinsics} size={self._hand_image_size}")
+        self.get_logger().info(
+            f"Camera intrinsics set: {self.camera_intrinsics} size={self._hand_image_size}"
+        )
 
     def _seed_3d_cb(self, msg: PointStamped):
         """Receive 3D point@T0, reproject to pixel in current camera frame, publish."""
@@ -372,8 +444,17 @@ class TFProjectionNode(Node):
             self.get_logger().warn(f"TF lookup @T0 failed: {exc}")
             return
 
-        tx, ty, tz = t0.transform.translation.x, t0.transform.translation.y, t0.transform.translation.z
-        qx, qy, qz, qw = t0.transform.rotation.x, t0.transform.rotation.y, t0.transform.rotation.z, t0.transform.rotation.w
+        tx, ty, tz = (
+            t0.transform.translation.x,
+            t0.transform.translation.y,
+            t0.transform.translation.z,
+        )
+        qx, qy, qz, qw = (
+            t0.transform.rotation.x,
+            t0.transform.rotation.y,
+            t0.transform.rotation.z,
+            t0.transform.rotation.w,
+        )
         px, py, pz = self._rotate_point_by_quaternion(x, y, z, qx, qy, qz, qw)
         odom_x, odom_y, odom_z = px + tx, py + ty, pz + tz
         self.get_logger().info(
@@ -427,16 +508,29 @@ class TFProjectionNode(Node):
                 f"[TF] T0→T_now interval too large ({dt:.1f}s, |dt| > 8.0s), discarding stale reprojection"
             )
             return
-        tx2, ty2, tz2 = t_now.transform.translation.x, t_now.transform.translation.y, t_now.transform.translation.z
-        qx2, qy2, qz2, qw2 = t_now.transform.rotation.x, t_now.transform.rotation.y, t_now.transform.rotation.z, t_now.transform.rotation.w
-        cx, cy, cz = self._rotate_point_by_quaternion(odom_x, odom_y, odom_z, qx2, qy2, qz2, qw2)
+        tx2, ty2, tz2 = (
+            t_now.transform.translation.x,
+            t_now.transform.translation.y,
+            t_now.transform.translation.z,
+        )
+        qx2, qy2, qz2, qw2 = (
+            t_now.transform.rotation.x,
+            t_now.transform.rotation.y,
+            t_now.transform.rotation.z,
+            t_now.transform.rotation.w,
+        )
+        cx, cy, cz = self._rotate_point_by_quaternion(
+            odom_x, odom_y, odom_z, qx2, qy2, qz2, qw2
+        )
         cam_x, cam_y, cam_z = cx + tx2, cy + ty2, cz + tz2
         self.get_logger().info(
             f"[TF] step2 {self.target_parent_frame}→cam: cam_pt=({cam_x:.3f},{cam_y:.3f},{cam_z:.3f}) tf_t=({tx2:.3f},{ty2:.3f},{tz2:.3f}) t_now={t_now_stamp_sec:.3f}"
         )
 
         if cam_z <= 0.0:
-            self.get_logger().warn(f"Reprojected point behind camera (cam_z={cam_z:.3f})")
+            self.get_logger().warn(
+                f"Reprojected point behind camera (cam_z={cam_z:.3f})"
+            )
             return
 
         # 3) Project to pixel with intrinsics
@@ -480,7 +574,9 @@ class TFProjectionNode(Node):
 
     def _tracking_3d_cb(self, msg: PointStamped):
         if not msg.header.frame_id:
-            self.get_logger().warn("tracking_3d point without frame_id", throttle_duration_sec=1.0)
+            self.get_logger().warn(
+                "tracking_3d point without frame_id", throttle_duration_sec=1.0
+            )
             return
 
         source_frame = str(msg.header.frame_id)
@@ -488,7 +584,9 @@ class TFProjectionNode(Node):
         y = float(msg.point.y)
         z = float(msg.point.z)
         if not all(math.isfinite(v) for v in (x, y, z)):
-            self.get_logger().warn("tracking_3d point has non-finite values", throttle_duration_sec=1.0)
+            self.get_logger().warn(
+                "tracking_3d point has non-finite values", throttle_duration_sec=1.0
+            )
             return
 
         try:
@@ -509,10 +607,16 @@ class TFProjectionNode(Node):
         target_y = py + ty
         target_z = pz + tz
         if not all(math.isfinite(v) for v in (target_x, target_y, target_z)):
-            self.get_logger().warn("target point became non-finite after transform", throttle_duration_sec=1.0)
+            self.get_logger().warn(
+                "target point became non-finite after transform",
+                throttle_duration_sec=1.0,
+            )
             return
         if any(abs(v) > self.max_target_abs_m for v in (target_x, target_y, target_z)):
-            self.get_logger().warn("target point out of bounds; skipping publish", throttle_duration_sec=1.0)
+            self.get_logger().warn(
+                "target point out of bounds; skipping publish",
+                throttle_duration_sec=1.0,
+            )
             return
 
         self._last_valid_target = (float(target_x), float(target_y), float(target_z))
@@ -526,7 +630,9 @@ class TFProjectionNode(Node):
             # (partial/edge mask or depth-fallback noise under camera motion), unless a
             # sustained run of far readings indicates the object actually moved.
             if self.target_jump_reject_m > 0.0:
-                dist = math.sqrt((target_x - ex) ** 2 + (target_y - ey) ** 2 + (target_z - ez) ** 2)
+                dist = math.sqrt(
+                    (target_x - ex) ** 2 + (target_y - ey) ** 2 + (target_z - ez) ** 2
+                )
                 if dist > self.target_jump_reject_m:
                     self._jump_count += 1
                     if self._jump_count < self.target_jump_relatch_count:
@@ -538,8 +644,13 @@ class TFProjectionNode(Node):
                         return  # hold the latched position
                     # sustained move → re-latch to the new location
                     self.get_logger().info(
-                        f"target moved {dist:.2f}m for {self._jump_count} readings — re-latching")
-                    self._ema_target = (float(target_x), float(target_y), float(target_z))
+                        f"target moved {dist:.2f}m for {self._jump_count} readings — re-latching"
+                    )
+                    self._ema_target = (
+                        float(target_x),
+                        float(target_y),
+                        float(target_z),
+                    )
                     self._jump_count = 0
                     return
                 self._jump_count = 0
@@ -547,7 +658,7 @@ class TFProjectionNode(Node):
             self._ema_target = (
                 ex + alpha * (float(target_x) - ex),
                 ey + alpha * (float(target_y) - ey),
-                ez + alpha * (float(target_z) - ez)
+                ez + alpha * (float(target_z) - ez),
             )
 
         # Note: _publish_target is now handled continuously by _target_publish_cb.

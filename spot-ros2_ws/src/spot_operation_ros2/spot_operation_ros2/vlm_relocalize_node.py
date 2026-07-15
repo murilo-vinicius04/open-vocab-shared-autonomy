@@ -83,16 +83,16 @@ def parse_qwen_response(response_text: str, image_size: tuple = None) -> list:
             for item in data:
                 if not isinstance(item, dict):
                     continue
-                if 'bbox_2d' in item:
-                    b = item['bbox_2d']
+                if "bbox_2d" in item:
+                    b = item["bbox_2d"]
                     if not isinstance(b, (list, tuple)) or len(b) < 4:
                         print(f"DEBUG: invalid bbox_2d in JSON item: {item}")
                         continue
-                    label = item.get('label', 'object')
-                    confidence = _safe_confidence(item.get('confidence', 1.0))
-                    grasp_points = item.get('grasp_point_2ds', None)
+                    label = item.get("label", "object")
+                    confidence = _safe_confidence(item.get("confidence", 1.0))
+                    grasp_points = item.get("grasp_point_2ds", None)
                     if not grasp_points:
-                        gp = item.get('grasp_point_2d', None)
+                        gp = item.get("grasp_point_2d", None)
                         if gp:
                             grasp_points = [gp]
                     xmin, ymin, xmax, ymax = b[0], b[1], b[2], b[3]
@@ -103,47 +103,66 @@ def parse_qwen_response(response_text: str, image_size: tuple = None) -> list:
                                 continue
                             gx, gy = pt[0], pt[1]
                             grasps_1000.append([int(float(gx)), int(float(gy))])
-                    boxes.append({
-                        'label': label,
-                        'bbox_1000': [int(float(xmin)), int(float(ymin)), int(float(xmax)), int(float(ymax))],
-                        'grasps_1000': grasps_1000,
-                        'confidence': confidence,
-                    })
+                    boxes.append(
+                        {
+                            "label": label,
+                            "bbox_1000": [
+                                int(float(xmin)),
+                                int(float(ymin)),
+                                int(float(xmax)),
+                                int(float(ymax)),
+                            ],
+                            "grasps_1000": grasps_1000,
+                            "confidence": confidence,
+                        }
+                    )
             if boxes:
                 return boxes
     except Exception as e:
         print(f"DEBUG: Failed to parse Qwen JSON: {e}. Excerpt: {clean_text[:220]}")
 
-    pattern_strict = r'<ref>(.*?)</ref>\s*<box>\[\[(\d+),\s*(\d+),\s*(\d+),\s*(\d+)\]\]</box>'
+    pattern_strict = (
+        r"<ref>(.*?)</ref>\s*<box>\[\[(\d+),\s*(\d+),\s*(\d+),\s*(\d+)\]\]</box>"
+    )
     matches = re.findall(pattern_strict, response_text)
     if not matches:
-        pattern_simple = r'<ref>(.*?)</ref>\s*<box>\[(\d+),\s*(\d+),\s*(\d+),\s*(\d+)\]</box>'
+        pattern_simple = (
+            r"<ref>(.*?)</ref>\s*<box>\[(\d+),\s*(\d+),\s*(\d+),\s*(\d+)\]</box>"
+        )
         matches = re.findall(pattern_simple, response_text)
 
     matches_loose = []
     if not matches:
-        pattern_loose_full = r'<ref>(.*?)</ref>.*?<box.*?[(\[]\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)[,\s]+(\d+)'
+        pattern_loose_full = (
+            r"<ref>(.*?)</ref>.*?<box.*?[(\[]\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)[,\s]+(\d+)"
+        )
         matches_loose = re.findall(pattern_loose_full, response_text, re.DOTALL)
 
     all_found = []
     if matches:
         for m in matches:
-            all_found.append({'label': m[0], 'coords': [int(x) for x in m[1:]], 'source': 'strict'})
+            all_found.append(
+                {"label": m[0], "coords": [int(x) for x in m[1:]], "source": "strict"}
+            )
     elif matches_loose:
         for m in matches_loose:
-            all_found.append({'label': m[0], 'coords': [int(x) for x in m[1:]], 'source': 'loose'})
+            all_found.append(
+                {"label": m[0], "coords": [int(x) for x in m[1:]], "source": "loose"}
+            )
 
     if not all_found:
         return []
 
-    print(f"DEBUG: Found {len(all_found)} candidate boxes via {all_found[0]['source']}.")
+    print(
+        f"DEBUG: Found {len(all_found)} candidate boxes via {all_found[0]['source']}."
+    )
 
     for item in all_found:
-        label = item['label']
-        c1, c2, c3, c4 = item['coords']
-        source = item['source']
+        label = item["label"]
+        c1, c2, c3, c4 = item["coords"]
+        source = item["source"]
         explicit_pixels = any(c > 1000 for c in [c1, c2, c3, c4])
-        use_pixels_logic = (source == 'loose') or explicit_pixels
+        use_pixels_logic = (source == "loose") or explicit_pixels
         h_a = c3 - c1
         w_a = c4 - c2
         w_b = c3 - c1
@@ -155,7 +174,7 @@ def parse_qwen_response(response_text: str, image_size: tuple = None) -> list:
         elif valid_b and not valid_a:
             final_coords = [c1, c2, c3, c4]
         elif valid_a and valid_b:
-            if source == 'strict':
+            if source == "strict":
                 final_coords = [c2, c1, c4, c3]
             else:
                 final_coords = [c1, c2, c3, c4]
@@ -167,10 +186,12 @@ def parse_qwen_response(response_text: str, image_size: tuple = None) -> list:
             xmax = (xmax / w) * 1000
             ymin = (ymin / h) * 1000
             ymax = (ymax / h) * 1000
-        boxes.append({
-            'label': label.strip(),
-            'bbox_1000': [int(xmin), int(ymin), int(xmax), int(ymax)],
-        })
+        boxes.append(
+            {
+                "label": label.strip(),
+                "bbox_1000": [int(xmin), int(ymin), int(xmax), int(ymax)],
+            }
+        )
 
     return boxes
 
@@ -208,7 +229,9 @@ class VlmRelocalizeNode(Node):
         rgb_topic = self.get_parameter("rgb_topic").value
         camera_info_topic = self.get_parameter("camera_info_topic").value
         self.target_frame = self.get_parameter("target_frame").value
-        self.min_abs_rotation_deg = float(self.get_parameter("min_abs_rotation_deg").value)
+        self.min_abs_rotation_deg = float(
+            self.get_parameter("min_abs_rotation_deg").value
+        )
         self.object_prompt = self.get_parameter("object_prompt").value
         self.vlm_url = self.get_parameter("vlm_url").value
         self.request_timeout_sec = float(
@@ -224,7 +247,9 @@ class VlmRelocalizeNode(Node):
         self._latest_stamp_nanosec = None
         self._latest_header = None
         self._camera_frame_id = None
-        self._last_served_stamp = None  # (sec, ns) of last frame the VLM actually scored
+        self._last_served_stamp = (
+            None  # (sec, ns) of last frame the VLM actually scored
+        )
         self._srv_req_seq = 0
         self._camera_speed = None
         self._vlm_input_dir = _prepare_vlm_input_dir()
@@ -233,10 +258,14 @@ class VlmRelocalizeNode(Node):
         self.tf_buffer = Buffer(cache_time=Duration(seconds=120.0))
         self.tf_listener = TransformListener(self.tf_buffer, self, spin_thread=False)
 
-        self._prompt_change_pub = self.create_publisher(String, "/vlm/prompt_change_id", 10)
+        self._prompt_change_pub = self.create_publisher(
+            String, "/vlm/prompt_change_id", 10
+        )
         self._seed_pub = self.create_publisher(String, "/perception/seed_command", 10)
         self._rgb_sub = self.create_subscription(RosImage, rgb_topic, self._rgb_cb, 10)
-        self._camera_info_sub = self.create_subscription(CameraInfo, camera_info_topic, self._camera_info_cb, 10)
+        self._camera_info_sub = self.create_subscription(
+            CameraInfo, camera_info_topic, self._camera_info_cb, 10
+        )
         self._cam_speed_sub = self.create_subscription(
             Float64,
             str(self.get_parameter("camera_speed_topic").value),
@@ -244,7 +273,9 @@ class VlmRelocalizeNode(Node):
             10,
         )
         self._srv = self.create_service(Trigger, service_name, self._handle_relocalize)
-        self._set_prompt_srv = self.create_service(SetBool, "/vlm/set_object_prompt", self._handle_set_prompt)
+        self._set_prompt_srv = self.create_service(
+            SetBool, "/vlm/set_object_prompt", self._handle_set_prompt
+        )
         self.get_logger().info(
             f"VLM relocalize service ready at {service_name}, rgb_topic={rgb_topic}, "
             f"camera_info={camera_info_topic}, input_dir={self._vlm_input_dir}"
@@ -268,12 +299,16 @@ class VlmRelocalizeNode(Node):
         st = rclpy.time.Time.from_msg(stamp)
         try:
             t = self.tf_buffer.lookup_transform(
-                self.target_frame, source_frame, st,
+                self.target_frame,
+                source_frame,
+                st,
                 timeout=Duration(seconds=0.0),
             )
         except Exception:
             t = self.tf_buffer.lookup_transform(
-                self.target_frame, source_frame, rclpy.time.Time(),
+                self.target_frame,
+                source_frame,
+                rclpy.time.Time(),
                 timeout=Duration(seconds=0.0),
             )
         return roll_deg_from_quaternion(
@@ -321,7 +356,9 @@ Ensure bounding box and grasp point coordinates are normalized to [0-1000] scale
                     "content": [
                         {
                             "type": "image_url",
-                            "image_url": {"url": f"data:image/jpeg;base64,{base64_img}"},
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{base64_img}"
+                            },
                         },
                         {"type": "text", "text": prompt},
                     ],
@@ -350,7 +387,9 @@ Ensure bounding box and grasp point coordinates are normalized to [0-1000] scale
                     time.sleep(0.1)
         raise RuntimeError(f"VLM request failed: {last_exc}")
 
-    def _save_vlm_input_image(self, image: Image.Image, req_id: int, stamp_sec: int, stamp_ns: int):
+    def _save_vlm_input_image(
+        self, image: Image.Image, req_id: int, stamp_sec: int, stamp_ns: int
+    ):
         """Persist the exact image sent to the VLM for debugging and replay."""
         try:
             filename = f"vlm_input_{req_id:04d}_{stamp_sec}_{stamp_ns:09d}.png"
@@ -364,7 +403,9 @@ Ensure bounding box and grasp point coordinates are normalized to [0-1000] scale
     def _handle_set_prompt(self, request, response):
         """Handle object prompt change requests - data=True means use new prompt param."""
         if request.data:
-            new_prompt = self.get_parameter("new_object_prompt").value or self.object_prompt
+            new_prompt = (
+                self.get_parameter("new_object_prompt").value or self.object_prompt
+            )
             if new_prompt != self.object_prompt:
                 self.object_prompt = new_prompt
                 self._current_prompt_change_id += 1
@@ -379,11 +420,15 @@ Ensure bounding box and grasp point coordinates are normalized to [0-1000] scale
             else:
                 response.success = False
                 response.message = "No new_object_prompt parameter set"
-                self.get_logger().warn("[VLM] Set prompt requested but new_object_prompt parameter not set")
+                self.get_logger().warn(
+                    "[VLM] Set prompt requested but new_object_prompt parameter not set"
+                )
         else:
             response.success = False
             response.message = "Set data=False does nothing (use ros2 param set /vlm_relocalize_node new_object_prompt 'your prompt' first)"
-            self.get_logger().info("[VLM] Set prompt usage: ros2 param set /vlm_relocalize_node new_object_prompt '<prompt>' && ros2 service call /vlm/set_object_prompt std_srvs/srv/SetBool '{data: true}'")
+            self.get_logger().info(
+                "[VLM] Set prompt usage: ros2 param set /vlm_relocalize_node new_object_prompt '<prompt>' && ros2 service call /vlm/set_object_prompt std_srvs/srv/SetBool '{data: true}'"
+            )
         return response
 
     def _handle_relocalize(self, _request, response):
@@ -395,7 +440,10 @@ Ensure bounding box and grasp point coordinates are normalized to [0-1000] scale
             return response
         max_age = float(self.get_parameter("max_frame_age_sec").value)
         if max_age > 0.0 and self._latest_stamp_sec is not None:
-            last_stamp = float(self._latest_stamp_sec) + float(self._latest_stamp_nanosec or 0) * 1e-9
+            last_stamp = (
+                float(self._latest_stamp_sec)
+                + float(self._latest_stamp_nanosec or 0) * 1e-9
+            )
             now = self.get_clock().now().nanoseconds * 1e-9
             age = now - last_stamp
             if age > max_age:
@@ -406,7 +454,10 @@ Ensure bounding box and grasp point coordinates are normalized to [0-1000] scale
                     throttle_duration_sec=2.0,
                 )
                 return response
-        cur_stamp = (int(self._latest_stamp_sec or 0), int(self._latest_stamp_nanosec or 0))
+        cur_stamp = (
+            int(self._latest_stamp_sec or 0),
+            int(self._latest_stamp_nanosec or 0),
+        )
         if self._last_served_stamp == cur_stamp:
             response.success = False
             response.message = "frame_unchanged"
@@ -429,7 +480,11 @@ Ensure bounding box and grasp point coordinates are normalized to [0-1000] scale
             req_id = int(self._srv_req_seq)
             stamp_sec = int(self._latest_stamp_sec or 0)
             stamp_ns = int(self._latest_stamp_nanosec or 0)
-            frame_size = list(self._latest_rgb_pil.size) if self._latest_rgb_pil is not None else None
+            frame_size = (
+                list(self._latest_rgb_pil.size)
+                if self._latest_rgb_pil is not None
+                else None
+            )
             self.get_logger().info(
                 f"[VLM] req_id={req_id} starting with frame stamp={stamp_sec}.{stamp_ns:09d}"
             )
@@ -440,36 +495,48 @@ Ensure bounding box and grasp point coordinates are normalized to [0-1000] scale
             # Look up roll angle dynamically via TF
             try:
                 source_frame = self._resolve_source_frame(self._latest_header)
-                correction_angle = self._lookup_roll_deg(source_frame, self._latest_header.stamp)
+                correction_angle = self._lookup_roll_deg(
+                    source_frame, self._latest_header.stamp
+                )
             except Exception as exc:
-                self.get_logger().warn(f"[VLM] Failed to lookup roll angle: {exc}. Using 0.0")
+                self.get_logger().warn(
+                    f"[VLM] Failed to lookup roll angle: {exc}. Using 0.0"
+                )
                 correction_angle = 0.0
 
             # Rotate image upright on-demand
             if abs(correction_angle) > self.min_abs_rotation_deg:
                 img_rot, M_fwd, rot_size = rotate_image_upright(img, correction_angle)
-                self.get_logger().info(f"[VLM] Rotated image upright by {correction_angle:.2f} deg")
+                self.get_logger().info(
+                    f"[VLM] Rotated image upright by {correction_angle:.2f} deg"
+                )
             else:
                 img_rot = img
                 correction_angle = 0.0
                 M_fwd = None
                 rot_size = (orig_w, orig_h)
 
-            saved_path = self._save_vlm_input_image(img_rot, req_id, stamp_sec, stamp_ns)
+            saved_path = self._save_vlm_input_image(
+                img_rot, req_id, stamp_sec, stamp_ns
+            )
             if saved_path is not None:
                 self.get_logger().info(f"[VLM] input image saved at {saved_path}")
             text, latency_ms = self._run_vlm(img_rot)
-            self.get_logger().info(f"[VLM] raw response (req_id={req_id}): {text[:300]}")
+            self.get_logger().info(
+                f"[VLM] raw response (req_id={req_id}): {text[:300]}"
+            )
             boxes = parse_qwen_response(text, image_size=rot_size)
             if boxes and correction_angle != 0.0 and M_fwd is not None:
                 for box in boxes:
                     if "bbox_1000" in box:
-                        box["bbox_1000"], box["grasps_1000"] = _inverse_rotate_coords_1000(
-                            box["bbox_1000"],
-                            box.get("grasps_1000", []),
-                            M_fwd,
-                            rot_size,
-                            (orig_w, orig_h),
+                        box["bbox_1000"], box["grasps_1000"] = (
+                            _inverse_rotate_coords_1000(
+                                box["bbox_1000"],
+                                box.get("grasps_1000", []),
+                                M_fwd,
+                                rot_size,
+                                (orig_w, orig_h),
+                            )
                         )
             if not boxes:
                 response.success = False
@@ -504,4 +571,3 @@ def main(args=None):
         node.destroy_node()
         if rclpy.ok():
             rclpy.shutdown()
-

@@ -177,13 +177,17 @@ def generate_launch_description():
                 "use_sim_time", default_value="false", description="Use simulation time"
             ),
             DeclareLaunchArgument(
-                "global_frame", default_value="vision", description="Global frame for nvblox"
+                "global_frame",
+                default_value="vision",
+                description="Global frame for nvblox",
             ),
             DeclareLaunchArgument(
                 "sim", default_value="true", description="Whether to use simulation"
             ),
             DeclareLaunchArgument(
-                "use_segmentation", default_value="true", description="Use segmentation masks"
+                "use_segmentation",
+                default_value="true",
+                description="Use segmentation masks",
             ),
             DeclareLaunchArgument(
                 "cameras",
