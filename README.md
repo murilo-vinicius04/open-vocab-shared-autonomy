@@ -187,6 +187,13 @@ ros2 launch spot_nvblox spot_nvblox.launch.py                      # TSDF/ESDF m
 The `curobo_mpc.launch.py` node runs from the `curobo_venv` virtual environment
 described under "Building the ROS 2 workspace" above.
 
+Grounding is requested by the coordinator on a prompt change. To force a
+(re)grounding by hand, or to test the pipeline, call the service directly:
+
+```bash
+ros2 service call /vlm/trigger_relocalize std_srvs/srv/Trigger
+```
+
 `spot_nvblox` defaults to `use_segmentation:=false`. Only set it to `true` once
 `perception_minimal.launch.py` is running, since that is what publishes the
 SAM 2 masks nvblox's synchronizer waits on; enabling segmentation without those
