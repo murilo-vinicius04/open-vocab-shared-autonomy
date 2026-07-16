@@ -187,6 +187,13 @@ ros2 launch spot_nvblox spot_nvblox.launch.py                      # TSDF/ESDF m
 The `curobo_mpc.launch.py` node runs from the `curobo_venv` virtual environment
 described under "Building the ROS 2 workspace" above.
 
+`spot_nvblox` defaults to `use_segmentation:=false`. Only set it to `true` once
+`perception_minimal.launch.py` is running, since that is what publishes the
+SAM 2 masks nvblox's synchronizer waits on; enabling segmentation without those
+masks stalls the mapper. The `isaac-ros_ws` workspace is built the same way as
+`spot-ros2_ws` (`rosdep install` pulls the Isaac ROS NITROS/GXF dependencies);
+give it a few GB of free disk, as that dependency set is large.
+
 ## Isaac Sim locomanipulation demo
 
 `isaac-sim_ws/spot_warehouse/` is a self-contained Isaac Sim application that

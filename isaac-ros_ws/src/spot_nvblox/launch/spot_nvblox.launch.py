@@ -50,7 +50,11 @@ def launch_setup(context, *args, **kwargs):
     use_sim_time = LaunchConfiguration("use_sim_time").perform(context)
     use_segmentation = LaunchConfiguration("use_segmentation").perform(context)
     global_frame = LaunchConfiguration("global_frame").perform(context)
+    hand_depth_min_range = float(
+        LaunchConfiguration("hand_depth_min_range").perform(context)
+    )
 
+    extra_nodes = []
     remappings = []
     for i, cam in enumerate(camera_names):
         if sim == "true":
@@ -63,6 +67,30 @@ def launch_setup(context, *args, **kwargs):
             color_topic = f"/camera/{cam}/image_rgb"
             info_topic = f"/camera/{cam}/camera_info"
             depth_info_topic = f"/depth_registered/{cam}/camera_info"
+
+        # In sim the hand depth is valid right up to the lens, so when the gripper
+        # closes the jaw/object fills the frame and fuses a phantom blob into the
+        # map. Real cameras return invalid below their min range. Route the hand
+        # camera's depth through a min-range clip node that mimics that, and have
+        # nvblox consume the clipped topic instead. (hand_depth_min_range<=0 = off.)
+        if cam == "hand" and hand_depth_min_range > 0.0:
+            clipped_topic = f"{depth_topic}_clipped"
+            extra_nodes.append(
+                Node(
+                    package="spot_nvblox",
+                    executable="depth_min_clip_node",
+                    name="hand_depth_min_clip",
+                    output="screen",
+                    parameters=[{
+                        "input_topic": depth_topic,
+                        "output_topic": clipped_topic,
+                        "min_range_m": hand_depth_min_range,
+                        "max_range_m": 0.0,
+                        "use_sim_time": use_sim_time == "true",
+                    }],
+                )
+            )
+            depth_topic = clipped_topic
 
         remappings.extend(
             [
@@ -167,7 +195,7 @@ def launch_setup(context, *args, **kwargs):
                 )
             )
 
-    return [*rgb_converters, nvblox_node]
+    return [*extra_nodes, *rgb_converters, nvblox_node]
 
 
 def generate_launch_description():
@@ -186,8 +214,20 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument(
                 "use_segmentation",
-                default_value="true",
-                description="Use segmentation masks",
+                default_value="false",
+                description=(
+                    "Use SAM 2 segmentation masks. Keep false for the bare sim; set "
+                    "true only after perception_minimal.launch.py is up (it publishes "
+                    "the masks nvblox's synchronizer waits on, otherwise it stalls)."
+                ),
+            ),
+            DeclareLaunchArgument(
+                "hand_depth_min_range",
+                default_value="0.0",
+                description=(
+                    "Min-range clip (m) for the hand camera depth, to drop the "
+                    "near-lens gripper artifact in sim. 0 = off."
+                ),
             ),
             DeclareLaunchArgument(
                 "cameras",
