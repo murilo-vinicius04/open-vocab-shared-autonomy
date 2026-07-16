@@ -230,9 +230,13 @@ tracks upstream `main`.
 | [zed-ros2-wrapper](https://github.com/stereolabs/zed-ros2-wrapper) | `e9f5490` (humble-v4.2.5 line) | operator camera |
 | [zed-ros2-interfaces](https://github.com/stereolabs/zed-ros2-interfaces) | `cfffb88` (5.0.1+) | ZED message definitions |
 | Qwen3-VL-4B-Instruct | via vLLM (see `docker-compose.yaml`) | open-vocabulary grounding |
-| SAM 2.1 (base) | via `ultralytics` | promptable video segmentation |
+| SAM 2.1 (tiny) | via `ultralytics` | promptable video segmentation |
 | MediaPipe Pose / Hands / Gestures | `mediapipe` | operator tracking |
 
-The VLM, SAM 2, and MediaPipe models are pulled at build time by the Docker
-images and the Python requirements, not vendored here.
+These models are not vendored here. The `ultralytics` and `mediapipe` packages
+are installed into the images at build time, but their weights are not: the SAM 2
+checkpoint (`sam2.1_t.pt`, about 75 MB) is fetched by `ultralytics` the first time
+the tracker runs, and the Qwen3-VL weights are cached by the vLLM server on first
+launch into the mounted Hugging Face cache. The first run of each therefore needs
+network access.
 
