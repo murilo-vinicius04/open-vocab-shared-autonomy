@@ -5,8 +5,8 @@ from isaacsim import SimulationApp
 # kit BOOT (like a GUI session that already has them enabled). Enabling them later
 # half-loads omni.anim.graph.core ("Aborting Python node registration") and creating a
 # character from a late-applied binding crashes kit natively. The ZED Isaac Sim extension
-# (Stereolabs zed-isaac-sim) is an EXTERNAL dependency: set ZED_ISAAC_EXTS to its exts/
-# folder (see the overlay README); it defaults to /workspace/zed-isaac-sim/exts.
+# (Stereolabs zed-isaac-sim) ships as a git submodule under isaac-sim_ws/, mounted at
+# /workspace; ZED_ISAAC_EXTS overrides the default /workspace/zed-isaac-sim/exts.
 _APP_CONFIG = {"headless": False}
 if "--zed-operator" in sys.argv:
     _APP_CONFIG["extra_args"] = [
@@ -44,8 +44,8 @@ WAREHOUSE_USD = str(Path(__file__).resolve().parent.parent / "assets" / "clutter
 # wrist_target, watched by a virtual ZED that streams to the ZED SDK. With the zed wrapper
 # container + wrist_detector running, the robot mirrors the operator's motion (the teleop
 # demo GIF in the README). anim.usd ships in this overlay; the ZED_X asset comes from the
-# external Stereolabs zed-isaac-sim extension (see the overlay README). Poses are rough
-# defaults; aim/reposition in the GUI and press 'G' to persist the framing.
+# Stereolabs zed-isaac-sim extension vendored as a submodule (see the overlay README).
+# Poses are rough defaults; aim/reposition in the GUI and press 'G' to persist the framing.
 ANIM_USD = str(Path(__file__).resolve().parent.parent / "assets" / "anim.usd")
 ZED_EXTS_DIR = os.environ.get("ZED_ISAAC_EXTS", "/workspace/zed-isaac-sim/exts")
 ZED_X_USD = str(Path(ZED_EXTS_DIR) / "sl.sensor.camera" / "data" / "usd" / "ZED_X.usdc")

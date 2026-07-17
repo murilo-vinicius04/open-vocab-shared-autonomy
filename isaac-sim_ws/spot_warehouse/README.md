@@ -50,15 +50,21 @@ This is the setup behind the demo GIF in the top-level README: a virtual operato
 in the scene is filmed by a virtual ZED camera, the operator-facing perception
 stack tracks the wrist, and the robot arm mirrors it, all in simulation.
 
-It needs one external dependency, the **Stereolabs ZED Isaac Sim extension**
-(`sl.sensor.camera`), which provides the virtual ZED streamer and the `ZED_X`
-camera asset. It is not vendored here (third-party, large). Clone and build it
-from [`stereolabs/zed-isaac-sim`](https://github.com/stereolabs/zed-isaac-sim),
-then point the app at its `exts/` folder:
+It uses the **Stereolabs ZED Isaac Sim extension** (`sl.sensor.camera`), which
+provides the virtual ZED streamer and the `ZED_X` camera asset. It is included as
+a git submodule at `isaac-sim_ws/zed-isaac-sim`, pinned to
+[`v4.2.1`](https://github.com/stereolabs/zed-isaac-sim), so a recursive clone
+fetches it (otherwise initialize it explicitly):
 
 ```bash
-export ZED_ISAAC_EXTS=/path/to/zed-isaac-sim/exts   # default: /workspace/zed-isaac-sim/exts
+git submodule update --init isaac-sim_ws/zed-isaac-sim
 ```
+
+Its native libraries are tracked with Git LFS, so install `git-lfs` before
+fetching the submodule, and build it once following the extension's own README.
+The compose `isaac-sim` service mounts `isaac-sim_ws/` at `/workspace`, so the app
+finds it at the default `/workspace/zed-isaac-sim/exts`; set `ZED_ISAAC_EXTS` only
+if you keep it elsewhere.
 
 With that in place, bring up the full mirror loop (all ROS 2 containers share
 `ROS_DOMAIN_ID=8`):

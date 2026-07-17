@@ -247,6 +247,7 @@ tracks upstream `main`.
 | [spot_ros2](https://github.com/rai-opensource/spot_ros2) | `main` | robot driver (pulls `spot_wrapper`, `spot_description`, `synchros2`) |
 | [zed-ros2-wrapper](https://github.com/stereolabs/zed-ros2-wrapper) | `e9f5490` (humble-v4.2.5 line) | operator camera |
 | [zed-ros2-interfaces](https://github.com/stereolabs/zed-ros2-interfaces) | `cfffb88` (5.0.1+) | ZED message definitions |
+| [zed-isaac-sim](https://github.com/stereolabs/zed-isaac-sim) | `v4.2.1` | virtual ZED camera for the Isaac Sim teleop demo (uses Git LFS) |
 | Qwen3-VL-4B-Instruct | via vLLM (see `docker-compose.yaml`) | open-vocabulary grounding |
 | SAM 2.1 (tiny) | via `ultralytics` | promptable video segmentation |
 | MediaPipe Pose / Hands / Gestures | `mediapipe` | operator tracking |

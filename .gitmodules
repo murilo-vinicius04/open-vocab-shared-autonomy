@@ -17,3 +17,6 @@
 	path = spot-ros2_ws/src/spot_ros2
 	url = https://github.com/rai-opensource/spot_ros2.git
 	branch = main
+[submodule "isaac-sim_ws/zed-isaac-sim"]
+	path = isaac-sim_ws/zed-isaac-sim
+	url = https://github.com/stereolabs/zed-isaac-sim.git
