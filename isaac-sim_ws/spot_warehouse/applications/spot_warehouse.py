@@ -1,5 +1,20 @@
+import os
+import sys
 from isaacsim import SimulationApp
-simulation_app = SimulationApp({"headless": False})
+# --zed-operator: the anim-graph runtime and the ZED streamer extension must load at
+# kit BOOT (like a GUI session that already has them enabled). Enabling them later
+# half-loads omni.anim.graph.core ("Aborting Python node registration") and creating a
+# character from a late-applied binding crashes kit natively. The ZED Isaac Sim extension
+# (Stereolabs zed-isaac-sim) is an EXTERNAL dependency: set ZED_ISAAC_EXTS to its exts/
+# folder (see the overlay README); it defaults to /workspace/zed-isaac-sim/exts.
+_APP_CONFIG = {"headless": False}
+if "--zed-operator" in sys.argv:
+    _APP_CONFIG["extra_args"] = [
+        "--ext-folder", os.environ.get("ZED_ISAAC_EXTS", "/workspace/zed-isaac-sim/exts"),
+        "--enable", "omni.anim.graph.bundle",
+        "--enable", "sl.sensor.camera",
+    ]
+simulation_app = SimulationApp(_APP_CONFIG)
 
 import carb
 import csv
@@ -23,6 +38,38 @@ from omni.isaac.core.utils.extensions import enable_extension
 
 # Custom warehouse (simple_warehouse + table + clutter objects pre-arranged)
 WAREHOUSE_USD = str(Path(__file__).resolve().parent.parent / "assets" / "clutter" / "warehouse.usd")
+
+# --- Optional ZED-operator demo scene (enabled with --zed-operator) --------------------
+# Spawns a construction-worker character (anim.usd) whose arm IKs to a draggable
+# wrist_target, watched by a virtual ZED that streams to the ZED SDK. With the zed wrapper
+# container + wrist_detector running, the robot mirrors the operator's motion (the teleop
+# demo GIF in the README). anim.usd ships in this overlay; the ZED_X asset comes from the
+# external Stereolabs zed-isaac-sim extension (see the overlay README). Poses are rough
+# defaults; aim/reposition in the GUI and press 'G' to persist the framing.
+ANIM_USD = str(Path(__file__).resolve().parent.parent / "assets" / "anim.usd")
+ZED_EXTS_DIR = os.environ.get("ZED_ISAAC_EXTS", "/workspace/zed-isaac-sim/exts")
+ZED_X_USD = str(Path(ZED_EXTS_DIR) / "sl.sensor.camera" / "data" / "usd" / "ZED_X.usdc")
+# World coords (Spot spawns at (-2.5, 0, 0.7)); rotations are ZYX degrees.
+OPERATOR_POS = (0.0, 1.6, 0.0)
+OPERATOR_ROT_ZYX = (0.0, 0.0, 180.0)
+ZED_POS = (0.6, 0.6, 1.4)
+ZED_ROT_ZYX = (20.0, -10.0, 210.0)
+ZED_STREAM_PORT = 30000
+# Live-tuned framing persists here (written by the 'G' hotkey, auto-loaded next launch),
+# so dragging the operator/ZED and walking the robot into place survives across runs.
+# Absent file => the constants above are used.
+ZED_OPERATOR_POSE_FILE = str(Path(__file__).resolve().parent.parent / "zed_operator_poses.json")
+
+
+def _load_zed_operator_poses():
+    """Return the saved framing dict (operator/zed_x flat 4x4 + robot_spawn pos/quat) or {}."""
+    import json
+    try:
+        with open(ZED_OPERATOR_POSE_FILE) as fh:
+            return json.load(fh)
+    except Exception:
+        return {}
+
 
 from spot_cameras import ALL_CAMERAS, create_spot_cameras, initialize_cameras
 from spot_ros_bridge import ROSBridgeBuilder
@@ -294,7 +341,10 @@ def _start_keyboard_listener(callbacks: dict) -> None:
 class SpotRunner:
     def __init__(self, physics_dt, render_dt, obs_mode: str = "loco", policy_path: str | None = None,
                  log_csv: str | None = None, gain_switch_s: float = 0.0,
-                 grasp_object: str = "SM_BottlePlasticB_01") -> None:
+                 grasp_object: str = "SM_BottlePlasticB_01", zed_operator: bool = False,
+                 arm_gains: str | None = None) -> None:
+        self._zed_operator = bool(zed_operator)
+        self._arm_gains_preset = arm_gains
         self._world = World(stage_units_in_meters=1.0, physics_dt=physics_dt, rendering_dt=render_dt)
         self._phase2_config = load_spot_loco_phase2_config()
 
@@ -318,13 +368,32 @@ class SpotRunner:
             )
         else:
             policy_pt = str(Path(base_dir) / "policies" / "spot_arm_policy.pt")
+        spawn_pos = np.array([-2.5, 0.0, 0.7])
+        spawn_quat = None
+        if self._zed_operator:
+            rs = _load_zed_operator_poses().get("robot_spawn")
+            if rs:
+                import math
+                saved = np.array(rs.get("pos", spawn_pos), dtype=float)
+                # Restore only x/y (+ yaw below) and keep the known-good drop height:
+                # replaying the raw live pose (standing height + mid-stance orientation)
+                # spawns the robot intersecting the ground and physics launches it.
+                spawn_pos = np.array([saved[0], saved[1], 0.7])
+                if rs.get("quat"):
+                    w, x, y, z = [float(v) for v in rs["quat"]]
+                    yaw = math.atan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z))
+                    spawn_quat = np.array([math.cos(yaw / 2.0), 0.0, 0.0,
+                                           math.sin(yaw / 2.0)])
+                print(f"[ZED-operator] robot spawn loaded: xy={saved[:2].tolist()} "
+                      f"z=0.7 yaw-only", flush=True)
         self._spot = SpotLocoPolicy(
             prim_path="/World/Spot",
             name="Spot",
             usd_path=None,
             policy_path=policy_pt,
             policy_params_path=policy_params_path,
-            position=np.array([-2.5, 0.0, 0.7]),
+            position=spawn_pos,
+            orientation=spawn_quat,
             physics_dt=physics_dt,
             phase2_config=self._phase2_config,
             obs_mode=obs_mode,
@@ -383,6 +452,13 @@ class SpotRunner:
         self._object_reset_requested = False
         self._object_handles = {}        # prim path -> SingleRigidPrim
         self._object_initial_state = {}  # prim path -> (pos[3], quat_wxyz[4])
+
+        # ZED-operator scene must exist BEFORE world.reset(): the rig's IsaacImuSensor
+        # (which gates the ZED streamer exec chain) only registers with the physics
+        # sensor interface at sim init; created after reset it never produces readings
+        # ("no valid sensor reading") and the stream never starts.
+        if self._zed_operator:
+            self._setup_zed_operator()
 
     def _set_vel(self, vx: float, vy: float, wz: float) -> None:
         self._base_command = np.array([vx, vy, wz])
@@ -445,6 +521,8 @@ class SpotRunner:
             "R": self._request_object_reset,
             "T": self._request_full_reset,
         }
+        if self._zed_operator:
+            callbacks["G"] = self._request_pose_save
         _start_keyboard_listener(callbacks)
         print("[Keyboard] terminal raw-stdin listener started.")
         print("  Arrow Up/Down  -> forward / backward")
@@ -458,8 +536,201 @@ class SpotRunner:
         print("  R              -> reset all warehouse objects (Spot untouched)")
         print("  T              -> full reset (Spot to spawn + objects + re-init)")
         print("  Ctrl-C         -> quit")
+        if self._zed_operator:
+            print("  G              -> save operator/ZED/robot framing to disk")
 
         self._world.add_physics_callback("spot_forward", callback_fn=self.on_physics_step)
+
+    def _setup_zed_operator(self) -> None:
+        """Spawn the operator character + a virtual ZED that streams to the ZED SDK,
+        for the teleop demo/GIF. Gated behind --zed-operator so normal runs are untouched.
+        The operator (anim.usd) has a self-contained animation graph with a TwoBoneIK on
+        its arm that follows /World/Operator/wrist_target; drag that target by hand while
+        recording. The zed wrapper container receives the stream and wrist_detector maps the
+        operator's wrist motion onto the robot arm. The OPERATOR_*/ZED_* poses are rough
+        defaults; aim/reposition in the GUI and press 'G' to persist them."""
+        import omni.usd
+        import omni.graph.core as og
+        from pxr import Sdf, Usd, UsdGeom, UsdSkel, Gf
+
+        stage = omni.usd.get_context().get_stage()
+
+        # Extensions (anim-graph runtime + ZED streamer) are enabled at kit boot, before
+        # the stage exists (see the --zed-operator block near the top of the file).
+
+        def _place(prim_path, pos, rot_zyx):
+            # Set a single double-precision transform (matrix) op. Referenced assets
+            # (e.g. ZED_X.usdc) ship their own translate/rotateZYX/scale ops in double
+            # precision; re-adding typed ops would raise a precision/typeName clash, so we
+            # clear the op order and write one xformOp:transform instead.
+            xf = UsdGeom.Xformable(stage.GetPrimAtPath(prim_path))
+            xf.ClearXformOpOrder()
+            rx, ry, rz = rot_zyx
+            rot = (Gf.Rotation(Gf.Vec3d(0, 0, 1), rz)
+                   * Gf.Rotation(Gf.Vec3d(0, 1, 0), ry)
+                   * Gf.Rotation(Gf.Vec3d(1, 0, 0), rx))
+            xf.AddTransformOp().Set(Gf.Matrix4d(rot, Gf.Vec3d(*pos)))
+
+        # Operator character (self-contained anim graph + arm IK -> wrist_target).
+        add_reference_to_stage(ANIM_USD, "/World/Operator")
+        _place("/World/Operator", OPERATOR_POS, OPERATOR_ROT_ZYX)
+
+        _saved = _load_zed_operator_poses()
+
+        def _apply_saved_matrix(prim_path, key):
+            m = _saved.get(key)
+            if not m:
+                return
+            xf = UsdGeom.Xformable(stage.GetPrimAtPath(prim_path))
+            xf.ClearXformOpOrder()
+            xf.AddTransformOp().Set(Gf.Matrix4d(*[float(v) for v in m]))
+            print(f"[ZED-operator] {prim_path} pose loaded from saved framing", flush=True)
+
+        _apply_saved_matrix("/World/Operator", "operator")
+
+        # anim.usd stores the character, the AnimationGraph (idle clip + TwoBoneIK), and
+        # the ActionGraph feeding wrist_target into it, but NOT the skeleton<->graph
+        # binding: AnimationGraphAPI was applied live in the authoring GUI session and is
+        # not saved in the asset. Without it the character stays in T-pose and the graph
+        # nodes log "Invalid character". Recreate the binding on every SkelRoot found.
+        import omni.kit.commands
+        skel_roots = [
+            prim for prim in Usd.PrimRange(stage.GetPrimAtPath("/World/Operator"))
+            if prim.IsA(UsdSkel.Root)
+        ]
+        anim_graph_prim = stage.GetPrimAtPath("/World/Operator/AnimationGraph_01")
+        if not skel_roots or not anim_graph_prim:
+            print(f"[ZED-operator] SkelRoots={[str(p.GetPath()) for p in skel_roots]} "
+                  f"AnimationGraph={bool(anim_graph_prim)}; binding NOT applied, "
+                  f"character will stay in T-pose", flush=True)
+        else:
+            print(f"[ZED-operator] binding AnimationGraph to SkelRoot(s): "
+                  f"{[str(p.GetPath()) for p in skel_roots]}", flush=True)
+            try:
+                omni.kit.commands.execute(
+                    "ApplyAnimationGraphAPICommand",
+                    paths=[p.GetPath() for p in skel_roots],
+                    animation_graph_path=anim_graph_prim.GetPath(),
+                )
+            except Exception as exc:
+                print(f"[ZED-operator] ApplyAnimationGraphAPICommand failed ({exc}); "
+                      f"applying schema manually", flush=True)
+                for p in skel_roots:
+                    p.AddAppliedSchema("AnimationGraphAPI")
+                    p.CreateRelationship("animationGraph").SetTargets(
+                        [anim_graph_prim.GetPath()])
+        simulation_app.update()
+        # anim.usd's ActionGraph->AnimationGraph wiring is broken as-saved (authored
+        # live in the GUI, never persisted): the write node's graph rel targets the
+        # nonexistent /World/AnimationGraph, its variableName is empty, and the
+        # wrist_position variable is not declared on the graph prim. Repair all three,
+        # otherwise wrist_target never drives the arm's TwoBoneIK.
+        wag = stage.GetPrimAtPath(
+            "/World/Operator/ActionGraph_01/write_animation_graph_variable")
+        if wag and wag.IsValid() and anim_graph_prim:
+            wag.GetRelationship("inputs:graph").SetTargets(
+                [Sdf.Path("/World/Operator/AnimationGraph_01")])
+            vn = wag.GetAttribute("inputs:variableName")
+            # the input is CONNECTED to a read_variable node (graph var "varName",
+            # never authored) and a connected input ignores the local value: sever it.
+            vn.ClearConnections()
+            vn.Set("wrist_position")
+            vattr = anim_graph_prim.GetAttribute("anim:graph:variable:wrist_position")
+            if not vattr or not vattr.IsValid():
+                anim_graph_prim.CreateAttribute(
+                    "anim:graph:variable:wrist_position",
+                    Sdf.ValueTypeNames.Float3).Set(Gf.Vec3f(0.0, 0.0, 0.0))
+            print("[ZED-operator] repaired wrist ActionGraph wiring "
+                  "(graph rel + variableName + variable decl)", flush=True)
+
+        # Virtual ZED X, posed to frame the operator (and the arm if it fits).
+        add_reference_to_stage(ZED_X_USD, "/World/ZED_X")
+        _place("/World/ZED_X", ZED_POS, ZED_ROT_ZYX)
+        # ZED_X.usdc ships an ENABLED rigid body with gravity on, so as a free body it
+        # falls. Disable ONLY gravity: the rigid body must STAY enabled because the rig's
+        # Imu_Sensor reads from it, and the extension's exec chain that triggers the ZED
+        # streamer node runs through IsaacReadIMU. rigidBodyEnabled=False kills the IMU
+        # ("no valid sensor reading") and the stream never starts.
+        zed_prim = stage.GetPrimAtPath("/World/ZED_X")
+        zed_prim.CreateAttribute("physxRigidBody:disableGravity", Sdf.ValueTypeNames.Bool).Set(True)
+        _apply_saved_matrix("/World/ZED_X", "zed_x")
+        self._save_poses_requested = False
+
+        # Streaming graph: OnPlaybackTick -> ZED_Camera helper (NETWORK to 127.0.0.1).
+        keys = og.Controller.Keys
+        og.Controller.edit(
+            {"graph_path": "/World/ZED_ActionGraph", "evaluator_name": "execution"},
+            {
+                keys.CREATE_NODES: [
+                    ("OnTick", "omni.graph.action.OnPlaybackTick"),
+                    ("ZEDCamera", "sl.sensor.camera.ZED_Camera"),
+                ],
+                keys.SET_VALUES: [
+                    ("ZEDCamera.inputs:cameraModel", "ZED_X"),
+                    ("ZEDCamera.inputs:resolution", "HD1080"),
+                    # NETWORK (H264 over the port), matching the zed wrapper's sim_mode
+                    # receiver. IPC (shared-mem) does NOT feed sim_mode -> the receiver
+                    # gets "Failed to retrieve camera settings from sender".
+                    ("ZEDCamera.inputs:transportLayerMode", "NETWORK"),
+                    ("ZEDCamera.inputs:streamingPort", ZED_STREAM_PORT),
+                    ("ZEDCamera.inputs:fps", 30),
+                    # Default 10 Mbps smears moving regions into macroblock ghosts at
+                    # 1080p (identical corruption at publisher and viewer = encoder-side,
+                    # not DDS). Loopback bandwidth is free: give the encoder headroom.
+                    ("ZEDCamera.inputs:bitrate", 40000),
+                    ("ZEDCamera.inputs:chunkSize", 16084),
+                ],
+                keys.CONNECT: [
+                    ("OnTick.outputs:tick", "ZEDCamera.inputs:execIn"),
+                ],
+            },
+        )
+        # cameraPrim is a target (relationship) input; set it on the USD directly.
+        node = stage.GetPrimAtPath("/World/ZED_ActionGraph/ZEDCamera")
+        rel = node.GetRelationship("inputs:cameraPrim") if node else None
+        if rel:
+            rel.SetTargets([Sdf.Path("/World/ZED_X")])
+
+        logger.info("[ZED-operator] operator + virtual ZED ready (port %d). Drag "
+                    "/World/Operator/wrist_target to move the arm; run the zed container "
+                    "+ wrist_detector to drive the robot.", ZED_STREAM_PORT)
+
+    def _request_pose_save(self) -> None:
+        # Keyboard thread just flags; the write happens on the physics thread.
+        self._save_poses_requested = True
+        print("[ZED-operator] pose save requested (writing on next physics step)")
+
+    def _save_zed_operator_poses(self) -> None:
+        """Snapshot operator/ZED local transforms + robot base pose to
+        ZED_OPERATOR_POSE_FILE so the next --zed-operator launch restores this framing."""
+        import json
+        import omni.usd
+        from pxr import UsdGeom
+        stage = omni.usd.get_context().get_stage()
+
+        def _local_matrix(prim_path):
+            prim = stage.GetPrimAtPath(prim_path)
+            if not prim or not prim.IsValid():
+                return None
+            m = UsdGeom.Xformable(prim).GetLocalTransformation()
+            return [float(m.GetRow(r)[c]) for r in range(4) for c in range(4)]
+
+        data = {"operator": _local_matrix("/World/Operator"),
+                "zed_x": _local_matrix("/World/ZED_X")}
+        try:
+            pos, quat = self._spot.robot.get_world_pose()
+            data["robot_spawn"] = {
+                "pos": [float(v) for v in np.asarray(pos).reshape(-1)[:3]],
+                "quat": [float(v) for v in np.asarray(quat).reshape(-1)[:4]],
+            }
+        except Exception as exc:
+            print(f"[ZED-operator] could not read robot pose: {exc}", flush=True)
+        try:
+            with open(ZED_OPERATOR_POSE_FILE, "w") as fh:
+                json.dump(data, fh, indent=2)
+            print(f"[ZED-operator] framing saved to {ZED_OPERATOR_POSE_FILE}", flush=True)
+        except Exception as exc:
+            print(f"[ZED-operator] save failed: {exc}", flush=True)
 
     def _request_object_reset(self) -> None:
         """Flag an object-only reset; the actual reset runs in the physics step
@@ -690,6 +961,14 @@ class SpotRunner:
             if not self._trained_gains_applied:
                 apply_trained_gains(self._spot.robot, self._phase2_config)
                 self._trained_gains_applied = True
+                if self._arm_gains_preset:
+                    match = [g for n, g in ARM_GAIN_SWEEP if n == self._arm_gains_preset]
+                    if match:
+                        apply_arm_gains(self._spot.robot, match[0])
+                        print(f"[ArmGains] preset override -> {self._arm_gains_preset}")
+                    else:
+                        print(f"[ArmGains] unknown preset {self._arm_gains_preset}; "
+                              f"valid: {[n for n, _ in ARM_GAIN_SWEEP]}")
             # only override gains when a sweep is requested
             if self._gain_switch_s > 0.0:
                 name, gains = self._gain_sweep[self._gain_idx]
@@ -754,6 +1033,9 @@ class SpotRunner:
 
             # advance sim time, rotate through gain sweep, log arm state
             self._sim_t += step_size
+            if self._zed_operator and getattr(self, "_save_poses_requested", False):
+                self._save_poses_requested = False
+                self._save_zed_operator_poses()
             if self._gain_switch_s > 0.0 and (self._sim_t - self._gain_last_switch_t) >= self._gain_switch_s:
                 self._gain_idx = (self._gain_idx + 1) % len(self._gain_sweep)
                 name, gains = self._gain_sweep[self._gain_idx]
@@ -819,6 +1101,14 @@ def main():
                         help="Object to grasp/log/stabilize: a short name resolved under "
                              "/World/Warehouse, or a full prim path. The high-friction grasp "
                              "material and per-step obj_* logging bind to this prim.")
+    parser.add_argument("--zed-operator", action="store_true",
+                        help="Spawn the operator character (anim.usd) + a virtual ZED that "
+                             "streams to the ZED SDK, so the zed wrapper + wrist_detector can "
+                             "drive the robot arm (the teleop demo). Needs the external "
+                             "zed-isaac-sim extension; see the overlay README.")
+    parser.add_argument("--arm-gains", type=str, default=None,
+                        help="Apply a fixed arm-gain preset by name (see ARM_GAIN_SWEEP), e.g. "
+                             "sh10_el0-8_w5 for the stiffer preset used in the teleop demo.")
     args, _ = parser.parse_known_args()
 
     log_csv = args.log_csv
@@ -836,6 +1126,8 @@ def main():
         log_csv=log_csv,
         gain_switch_s=args.gain_switch_s,
         grasp_object=args.grasp_object,
+        zed_operator=args.zed_operator,
+        arm_gains=args.arm_gains,
     )
     simulation_app.update()
     runner._world.reset()

@@ -225,8 +225,13 @@ docker compose exec isaac-sim bash
 # optionally: --policy <path/to/policy.pt>, --obs-mode {loco,arm}
 ```
 
-See `isaac-sim_ws/spot_warehouse/README.md` for details and attribution
-(the app derives from the Apache-2.0 IsaacRobotics project).
+The operator-mirroring loop shown in the GIF above is reproduced with the
+`--zed-operator` flag, which adds the virtual operator and ZED camera to the
+scene. It needs one external dependency (the Stereolabs ZED Isaac Sim extension)
+and is driven by dragging the operator's wrist target in the viewport. See the
+"Teleoperation demo (operator mirroring)" section of
+`isaac-sim_ws/spot_warehouse/README.md` for the full setup, along with details
+and attribution (the app derives from the Apache-2.0 IsaacRobotics project).
 
 ## Dependencies (pinned)
 

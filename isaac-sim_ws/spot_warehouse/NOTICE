@@ -5,7 +5,8 @@ License, Version 2.0 (see LICENSE).
 Files originating from IsaacRobotics:
 - applications/spot_warehouse.py  (modified: warehouse scene composition,
   URDF-based robot import, locomanipulation policy integration, ROS 2
-  bridging, arm command handling, grasp-object instrumentation)
+  bridging, arm command handling, grasp-object instrumentation, and the
+  optional operator/ZED teleoperation demo scene)
 - applications/spot_policy.py     (modified: composite locomanipulation
   policy loading, phase-2 arm tracking configuration)
 - params/env.yaml                 (unmodified)
