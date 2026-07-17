@@ -203,6 +203,12 @@ give it a few GB of free disk, as that dependency set is large.
 
 ## Isaac Sim locomanipulation demo
 
+![Sim teleoperation: the arm mirrors the operator](docs/sim_teleop_demo.gif)
+
+Vision-based teleoperation in simulation (2.5x speed): a virtual ZED camera
+observes the operator character, the wrist detector decodes the arm motion, and
+the Spot arm mirrors it in real time.
+
 `isaac-sim_ws/spot_warehouse/` is a self-contained Isaac Sim application that
 spawns Spot with the arm in a cluttered warehouse and drives it with the
 locomanipulation policy (a self-contained TorchScript module shipped at
